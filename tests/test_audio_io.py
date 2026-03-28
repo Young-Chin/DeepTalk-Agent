@@ -4,6 +4,22 @@ from app.audio.in_stream import MicrophoneInput
 from app.audio.out_stream import AudioOutput
 
 
+class _FakeSoundDevice:
+    def __init__(self) -> None:
+        self.play_calls: list[tuple[object, int]] = []
+
+    def play(self, samples, samplerate: int) -> None:
+        self.play_calls.append((samples, samplerate))
+
+
+class _FakeNumpy:
+    int16 = "int16"
+
+    @staticmethod
+    def frombuffer(payload: bytes, dtype=None):
+        return {"payload": payload, "dtype": dtype}
+
+
 @pytest.mark.asyncio
 async def test_microphone_input_returns_injected_frames_in_order():
     microphone = MicrophoneInput(frames=[b"a", b"b"])
@@ -23,7 +39,10 @@ async def test_microphone_input_collects_utterance_until_silence_timeout():
 
 @pytest.mark.asyncio
 async def test_audio_output_tracks_playback_and_last_payload():
-    output = AudioOutput()
+    output = AudioOutput(
+        sounddevice_module=_FakeSoundDevice(),
+        numpy_module=_FakeNumpy(),
+    )
 
     await output.play(b"voice")
 
