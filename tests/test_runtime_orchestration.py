@@ -143,6 +143,18 @@ async def test_pump_microphone_once_transcribes_and_publishes_user_text(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_pump_microphone_once_skips_non_speech_frames(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    fake_asr = FakeASR("不会被调用")
+    app["asr"] = fake_asr
+    app["audio_in"].push_frame(b"")
+
+    await pump_microphone_once(app)
+
+    assert fake_asr.calls == []
+
+
+@pytest.mark.asyncio
 async def test_agent_reply_is_interrupted_when_new_audio_arrives(monkeypatch):
     app = _build_test_app(monkeypatch)
     fake_tts = FakeTTS(b"audio")

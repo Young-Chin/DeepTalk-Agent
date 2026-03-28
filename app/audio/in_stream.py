@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 import asyncio
 import importlib
+import struct
 from typing import Iterable
+
+_AUTO = object()
 
 
 class MicrophoneInput:
@@ -16,13 +19,17 @@ class MicrophoneInput:
         sample_rate: int = 16000,
         channels: int = 1,
         dtype: str = "int16",
-        sounddevice_module=None,
+        vad=_AUTO,
+        energy_threshold: int = 250,
+        sounddevice_module=_AUTO,
     ) -> None:
         self._queue: asyncio.Queue[bytes] = asyncio.Queue()
         self.sample_rate = sample_rate
         self.channels = channels
         self.dtype = dtype
+        self.energy_threshold = energy_threshold
         self._sounddevice = sounddevice_module
+        self._vad = vad
         self._stream = None
         for frame in frames or []:
             self.push_frame(frame)
@@ -34,22 +41,58 @@ class MicrophoneInput:
         return not self._queue.empty()
 
     def _resolve_sounddevice(self):
+        if self._sounddevice is _AUTO:
+            try:
+                self._sounddevice = importlib.import_module("sounddevice")
+            except ModuleNotFoundError as exc:
+                raise RuntimeError(
+                    "sounddevice is required for real microphone capture"
+                ) from exc
         if self._sounddevice is not None:
             return self._sounddevice
-        try:
-            self._sounddevice = importlib.import_module("sounddevice")
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "sounddevice is required for real microphone capture"
-            ) from exc
-        return self._sounddevice
+        raise RuntimeError("sounddevice is required for real microphone capture")
+
+    def _resolve_vad(self):
+        if self._vad is _AUTO:
+            try:
+                webrtcvad = importlib.import_module("webrtcvad")
+            except ModuleNotFoundError:
+                self._vad = None
+                return None
+            self._vad = webrtcvad.Vad(2)
+        if self._vad is not None:
+            return self._vad
+        return None
+
+    def _frame_energy(self, frame: bytes) -> float:
+        if not frame:
+            return 0.0
+        sample_width = 2
+        sample_count = len(frame) // sample_width
+        if sample_count == 0:
+            return 0.0
+        samples = struct.unpack("<" + "h" * sample_count, frame[: sample_count * 2])
+        return sum(abs(sample) for sample in samples) / sample_count
+
+    def is_speech_frame(self, frame: bytes) -> bool:
+        if not frame:
+            return False
+        vad = self._resolve_vad()
+        if vad is not None:
+            try:
+                return bool(vad.is_speech(frame, self.sample_rate))
+            except Exception:
+                return self._frame_energy(frame) >= self.energy_threshold
+        return self._frame_energy(frame) >= self.energy_threshold
 
     def start_device_capture(self) -> None:
         sounddevice = self._resolve_sounddevice()
 
         def _callback(indata, frames, time_info, status) -> None:
             del frames, time_info, status
-            self.push_frame(bytes(indata))
+            frame = bytes(indata)
+            if self.is_speech_frame(frame):
+                self.push_frame(frame)
 
         self._stream = sounddevice.RawInputStream(
             samplerate=self.sample_rate,

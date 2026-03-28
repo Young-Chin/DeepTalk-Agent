@@ -89,6 +89,8 @@ async def consume_next_event(app: dict) -> None:
 
 async def pump_microphone_once(app: dict) -> None:
     frame = await app["audio_in"].read_frame()
+    if not app["audio_in"].is_speech_frame(frame):
+        return
     with log_timing(
         LOGGER,
         component="asr",
