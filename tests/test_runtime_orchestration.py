@@ -1,7 +1,13 @@
 import pytest
 
 from app.bus import Event, EventType
-from app.main import build_app, consume_next_event, handle_event, pump_microphone_once
+from app.main import (
+    build_app,
+    consume_next_event,
+    handle_event,
+    pump_microphone_once,
+    start_audio_input,
+)
 from app.state_machine import State
 
 
@@ -48,6 +54,14 @@ class FakeASR:
     async def transcribe_chunk(self, pcm_bytes: bytes) -> str:
         self.calls.append(pcm_bytes)
         return self.text
+
+
+class FakeMicrophone:
+    def __init__(self) -> None:
+        self.start_calls = 0
+
+    def start_device_capture(self) -> None:
+        self.start_calls += 1
 
 
 def _build_test_app(monkeypatch):
@@ -147,3 +161,11 @@ async def test_agent_reply_is_interrupted_when_new_audio_arrives(monkeypatch):
     assert fake_audio.stop_calls == 1
     assert app["state_machine"].state == State.LISTENING
     assert app["memory"].snapshot() == []
+
+
+def test_start_audio_input_starts_device_capture():
+    app = {"audio_in": FakeMicrophone()}
+
+    start_audio_input(app)
+
+    assert app["audio_in"].start_calls == 1

@@ -29,8 +29,8 @@ def build_app() -> dict:
         "bus": bus,
         "state_machine": state_machine,
         "memory": memory,
-        "audio_in": MicrophoneInput(),
-        "audio_out": AudioOutput(),
+        "audio_in": MicrophoneInput(sample_rate=config.audio_sample_rate),
+        "audio_out": AudioOutput(sample_rate=config.audio_sample_rate),
         "asr": QwenASRAdapter(config.qwen_asr_base_url),
         "agent": GeminiAdapter(config.gemini_api_key),
         "tts": FishTTSAdapter(config.fish_tts_base_url),
@@ -101,10 +101,18 @@ async def pump_microphone_once(app: dict) -> None:
     )
 
 
+def start_audio_input(app: dict) -> None:
+    app["audio_in"].start_device_capture()
+
+
 async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
     print("DeepTalk Agent CLI started. Press Ctrl+C to exit.")
+    try:
+        start_audio_input(app)
+    except RuntimeError as exc:
+        LOGGER.warning("audio input unavailable: %s", exc)
 
     while True:
         await pump_microphone_once(app)

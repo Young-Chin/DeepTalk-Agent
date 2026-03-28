@@ -33,3 +33,15 @@ def test_build_app_loads_env_file(tmp_path, monkeypatch):
     app = build_app()
 
     assert app["config"].gemini_api_key == "from-dotenv"
+
+
+def test_build_app_passes_sample_rate_into_audio_components(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("QWEN_ASR_BASE_URL", "http://localhost:8001")
+    monkeypatch.setenv("FISH_TTS_BASE_URL", "http://localhost:8002")
+    monkeypatch.setenv("AUDIO_SAMPLE_RATE", "22050")
+
+    app = build_app()
+
+    assert app["audio_in"].sample_rate == 22050
+    assert app["audio_out"].sample_rate == 22050
