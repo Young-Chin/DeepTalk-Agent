@@ -57,6 +57,43 @@ python3 -m app.main
 - 我在这台机器上实测，这个模型对一段约 9 秒中文样本的转写耗时约 `1.95s`，峰值内存约 `1.37 GB`。
 - 当前本地 MLX ASR 仍属于 MVP 接入，推理时会把每个语音 chunk 写成临时 WAV 再送进 `mlx-audio`，优先保证能跑通。
 
+## Current Local Model Combo
+
+当前阶段，推荐的本地模型组合是：
+
+- ASR: `mlx-community/Qwen3-ASR-0.6B-4bit`
+- TTS: `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`
+
+选择这组组合的原因很直接：
+
+- 两个模型都已经在这台机器上完成了本地实测。
+- ASR 已经接入当前工程，可通过 `ASR_BACKEND=mlx` 启用。
+- TTS 模型已经通过 `mlx-audio` 命令行验证可生成中文 WAV，但还没有正式接入当前 runtime。
+- 相比之下，`mlx-community/Kokoro-82M-4bit` 当前主要受 `mlx-audio` / `mlx_lm` 版本兼容问题影响，暂不作为默认推进方案。
+
+本地手工验证命令：
+
+```bash
+python3 -m mlx_audio.stt.generate \
+  --model mlx-community/Qwen3-ASR-0.6B-4bit \
+  --audio tmp/asr/sample.wav \
+  --output-path tmp/asr/sample.txt \
+  --format txt \
+  --language zh \
+  --verbose
+```
+
+```bash
+python3 -m mlx_audio.tts.generate \
+  --model mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit \
+  --text "你好，我们现在在测试本地中文语音合成。" \
+  --output_path tmp/qwen3_tts \
+  --file_prefix qwen3_tts_test \
+  --audio_format wav \
+  --join_audio \
+  --verbose
+```
+
 ## Mock Mode
 
 在本地 ASR / TTS 服务还没部署完成前，可以先用 mock backend 跑通完整链路：
@@ -121,6 +158,7 @@ PODCAST_BACKEND=mock python3 -m app.main
 - `PODCAST_BACKEND=mock python3 -m app.main`：mock 模式可在本机正常启动，并且 `Ctrl+C` 可干净退出。
 - `PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main`：会输出输入/输出设备、speech frame、ASR、TTS 与播放调用状态，便于快速诊断本地环境。
 - `python3 -m mlx_audio.stt.generate --model mlx-community/Qwen3-ASR-0.6B-4bit --audio tmp/asr/sample.wav --output-path tmp/asr/sample.txt --format txt --language zh --verbose`：本机实测可完成中文转写，处理时间约 `1.95s`，峰值内存约 `1.37 GB`。
+- `python3 -m mlx_audio.tts.generate --model mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit --text "你好，我们现在在测试本地中文语音合成。" --output_path tmp/qwen3_tts --file_prefix qwen3_tts_test --audio_format wav --join_audio --verbose`：本机实测可生成中文 WAV，处理时间约 `6.02s`，峰值内存约 `3.97 GB`。
 - 手工语音链路检查：代码层面已具备试跑条件，但真实 ASR / TTS 质量和本地模型部署表现仍需实机验证。
 
 ## Latency Notes
