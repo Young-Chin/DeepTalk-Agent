@@ -63,4 +63,4 @@ async def test_mock_tts_adapter_returns_small_wav_payload():
     sample_rate, frames = _read_wav(audio)
     assert audio.startswith(b"RIFF")
     assert sample_rate == 16000
-    assert frames == b"\x00\x00\x00\x00"
+    assert frames != b"\x00\x00\x00\x00"

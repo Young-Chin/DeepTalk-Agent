@@ -75,6 +75,7 @@ async def handle_event(app: dict, event: Event) -> None:
 
     if event.type == EventType.USER_FINAL_TEXT:
         text = event.payload["text"]
+        print(f"User: {text}")
         machine.on_user_final_text(text)
         try:
             with log_timing(
@@ -95,6 +96,7 @@ async def handle_event(app: dict, event: Event) -> None:
 
     if event.type == EventType.AGENT_TEXT_READY:
         text = event.payload["text"]
+        print(f"Host: {text}")
         machine.on_agent_reply_ready(text)
         try:
             with log_timing(

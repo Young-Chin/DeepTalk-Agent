@@ -290,3 +290,20 @@ def test_stop_audio_input_stops_device_capture():
     stop_audio_input(app)
 
     assert app["audio_in"].stop_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_event_prints_transcript_and_agent_reply(monkeypatch, capsys):
+    app = _build_test_app(monkeypatch)
+    app["agent"] = FakeAgent("欢迎来到节目")
+    app["tts"] = FakeTTS(b"audio")
+    app["audio_out"] = FakeAudioOut()
+
+    await handle_event(
+        app,
+        Event(type=EventType.USER_FINAL_TEXT, payload={"text": "你好"}),
+    )
+
+    output = capsys.readouterr().out
+    assert "User: 你好" in output
+    assert "Host: 欢迎来到节目" in output
