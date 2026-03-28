@@ -41,6 +41,20 @@ mock 模式下：
 - ASR / 主持人回复 / TTS 使用内置 mock backend。
 - 不需要配置 `GEMINI_API_KEY`、`QWEN_ASR_BASE_URL`、`FISH_TTS_BASE_URL`。
 
+## Speaker Check
+
+如果你想先确认本机扬声器链路是否工作，可以优先用 mock 模式：
+
+```bash
+PODCAST_BACKEND=mock python3 -m app.main
+```
+
+当前 mock TTS 会生成一个很短的本地 WAV 音频片段。实际体验上可以这样测：
+
+- 先确认 macOS 输出设备是 `MacBook Air扬声器` 或你的目标耳机 / 音箱。
+- 启动 mock 模式后，对麦克风说一句话，让流程走完一轮。
+- 如果扬声器工作正常，你应该能听到一段很短的提示音频；如果麦克风指示灯亮但完全没有任何播放反馈，优先检查 macOS 的输出设备与音量设置。
+
 ## Known Limits
 
 - 当前只支持半双工打断设计，不支持真正全双工对话。
