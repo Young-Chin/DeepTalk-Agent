@@ -91,7 +91,14 @@ async def pump_microphone_once(app: dict) -> None:
     first_frame = await app["audio_in"].read_frame()
     if not app["audio_in"].is_speech_frame(first_frame):
         return
-    chunk = b"".join([first_frame, *app["audio_in"].drain_pending_frames()])
+    pending_frames = app["audio_in"].drain_pending_frames()
+    if pending_frames:
+        chunk = b"".join([first_frame, *pending_frames])
+    else:
+        chunk = await app["audio_in"].collect_utterance(
+            app["config"].turn_silence_ms,
+            initial_frame=first_frame,
+        )
     with log_timing(
         LOGGER,
         component="asr",

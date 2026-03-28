@@ -13,6 +13,15 @@ async def test_microphone_input_returns_injected_frames_in_order():
 
 
 @pytest.mark.asyncio
+async def test_microphone_input_collects_utterance_until_silence_timeout():
+    microphone = MicrophoneInput(frames=[b"a", b"b", b"c"])
+
+    chunk = await microphone.collect_utterance(silence_timeout_ms=1)
+
+    assert chunk == b"abc"
+
+
+@pytest.mark.asyncio
 async def test_audio_output_tracks_playback_and_last_payload():
     output = AudioOutput()
 

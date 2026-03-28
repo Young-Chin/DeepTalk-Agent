@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import types
+import wave
 
 import pytest
 
@@ -54,6 +56,16 @@ class FakeNumpyModule:
     def frombuffer(payload: bytes, dtype=None):
         assert dtype == "int16"
         return {"payload": payload, "dtype": dtype}
+
+
+def _wav_bytes(sample_rate: int, frames: bytes) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(frames)
+    return buffer.getvalue()
 
 
 def test_microphone_input_start_device_capture_uses_sounddevice_callback():
@@ -121,3 +133,20 @@ async def test_audio_output_play_requires_optional_dependencies():
 
     with pytest.raises(RuntimeError, match="sounddevice"):
         await output.play(b"audio")
+
+
+@pytest.mark.asyncio
+async def test_audio_output_play_decodes_wav_and_uses_embedded_sample_rate():
+    sounddevice = FakeSoundDeviceOutputModule()
+    numpy_module = FakeNumpyModule()
+    output = AudioOutput(
+        sample_rate=16000,
+        sounddevice_module=sounddevice,
+        numpy_module=numpy_module,
+    )
+
+    await output.play(_wav_bytes(22050, b"\x01\x00\x02\x00"))
+
+    samples, samplerate = sounddevice.play_calls[0]
+    assert samples == {"payload": b"\x01\x00\x02\x00", "dtype": "int16"}
+    assert samplerate == 22050

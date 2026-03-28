@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import importlib
+import wave
 
 _AUTO = object()
 
@@ -41,14 +43,21 @@ class AudioOutput:
             return self._numpy
         raise RuntimeError("numpy is required for audio playback")
 
+    def _decode_audio_bytes(self, audio_bytes: bytes) -> tuple[bytes, int]:
+        if audio_bytes.startswith(b"RIFF") and b"WAVE" in audio_bytes[:16]:
+            with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+                return wav_file.readframes(wav_file.getnframes()), wav_file.getframerate()
+        return audio_bytes, self.sample_rate
+
     async def play(self, audio_bytes: bytes) -> None:
         # Default to in-memory playback state tracking so tests and dry runs work
         # even when optional audio device dependencies are unavailable.
         if self._sounddevice is not _AUTO or self._numpy is not _AUTO:
             sounddevice = self._resolve_sounddevice()
             numpy_module = self._resolve_numpy()
-            samples = numpy_module.frombuffer(audio_bytes, dtype=numpy_module.int16)
-            sounddevice.play(samples, self.sample_rate)
+            decoded_bytes, sample_rate = self._decode_audio_bytes(audio_bytes)
+            samples = numpy_module.frombuffer(decoded_bytes, dtype=numpy_module.int16)
+            sounddevice.play(samples, sample_rate)
         self.is_playing = bool(audio_bytes)
         self.last_played = audio_bytes
 

@@ -118,6 +118,28 @@ class MicrophoneInput:
             frames.append(self._queue.get_nowait())
         return frames
 
+    async def collect_utterance(
+        self,
+        silence_timeout_ms: int,
+        *,
+        initial_frame: bytes | None = None,
+    ) -> bytes:
+        frames = [initial_frame] if initial_frame is not None else [await self.read_frame()]
+        timeout_s = silence_timeout_ms / 1000
+
+        while True:
+            pending = self.drain_pending_frames()
+            if pending:
+                frames.extend(pending)
+                continue
+            try:
+                frame = await asyncio.wait_for(self.read_frame(), timeout=timeout_s)
+            except asyncio.TimeoutError:
+                break
+            frames.append(frame)
+
+        return b"".join(frames)
+
     async def frames(self) -> AsyncIterator[bytes]:
         while True:
             yield await self.read_frame()
