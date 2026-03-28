@@ -50,14 +50,11 @@ class AudioOutput:
         return audio_bytes, self.sample_rate
 
     async def play(self, audio_bytes: bytes) -> None:
-        # Default to in-memory playback state tracking so tests and dry runs work
-        # even when optional audio device dependencies are unavailable.
-        if self._sounddevice is not _AUTO or self._numpy is not _AUTO:
-            sounddevice = self._resolve_sounddevice()
-            numpy_module = self._resolve_numpy()
-            decoded_bytes, sample_rate = self._decode_audio_bytes(audio_bytes)
-            samples = numpy_module.frombuffer(decoded_bytes, dtype=numpy_module.int16)
-            sounddevice.play(samples, sample_rate)
+        sounddevice = self._resolve_sounddevice()
+        numpy_module = self._resolve_numpy()
+        decoded_bytes, sample_rate = self._decode_audio_bytes(audio_bytes)
+        samples = numpy_module.frombuffer(decoded_bytes, dtype=numpy_module.int16)
+        sounddevice.play(samples, sample_rate)
         self.is_playing = bool(audio_bytes)
         self.last_played = audio_bytes
 
