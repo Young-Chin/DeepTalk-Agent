@@ -35,3 +35,12 @@ def test_load_config_allows_mlx_asr_without_remote_qwen_url(monkeypatch):
 
     assert cfg.asr_backend == "mlx"
     assert cfg.qwen_asr_base_url is None
+
+
+def test_load_config_rejects_non_ascii_gemini_api_key(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "你的key")
+    monkeypatch.setenv("QWEN_ASR_BASE_URL", "http://localhost:8001")
+    monkeypatch.setenv("FISH_TTS_BASE_URL", "http://localhost:8002")
+
+    with pytest.raises(ConfigError, match="GEMINI_API_KEY must contain only ASCII"):
+        load_config()

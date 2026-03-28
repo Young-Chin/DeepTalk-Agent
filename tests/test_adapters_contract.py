@@ -29,6 +29,14 @@ async def test_gemini_adapter_returns_host_reply(httpx_mock):
 
 
 @pytest.mark.asyncio
+async def test_gemini_adapter_rejects_non_ascii_api_key():
+    adapter = GeminiAdapter("你的key")
+
+    with pytest.raises(ValueError, match="ASCII"):
+        await adapter.next_host_reply([{"role": "user", "content": "你好"}])
+
+
+@pytest.mark.asyncio
 async def test_fish_tts_adapter_returns_audio_bytes(httpx_mock):
     httpx_mock.add_response(content=b"audio-bytes")
 

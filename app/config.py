@@ -31,6 +31,16 @@ def _required(name: str) -> str:
     return value
 
 
+def _require_ascii(name: str, value: str) -> str:
+    try:
+        value.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ConfigError(
+            f"{name} must contain only ASCII characters. Check whether your shell environment is overriding .env with placeholder text."
+        ) from exc
+    return value
+
+
 def _int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None:
@@ -69,7 +79,7 @@ def load_config() -> AppConfig:
     if asr_backend == "qwen" and qwen_asr_base_url is None:
         raise ConfigError("Missing required env: QWEN_ASR_BASE_URL")
     return AppConfig(
-        gemini_api_key=_required("GEMINI_API_KEY"),
+        gemini_api_key=_require_ascii("GEMINI_API_KEY", _required("GEMINI_API_KEY")),
         qwen_asr_base_url=qwen_asr_base_url,
         fish_tts_base_url=_required("FISH_TTS_BASE_URL"),
         asr_backend=asr_backend,
