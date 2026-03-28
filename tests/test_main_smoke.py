@@ -1,3 +1,4 @@
+from app import main as app_main
 from app.main import build_app
 
 
@@ -45,3 +46,26 @@ def test_build_app_passes_sample_rate_into_audio_components(monkeypatch):
 
     assert app["audio_in"].sample_rate == 22050
     assert app["audio_out"].sample_rate == 22050
+
+
+def test_main_returns_zero_on_keyboard_interrupt(monkeypatch):
+    def _raise_interrupt():
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(app_main, "run", _raise_interrupt)
+
+    assert app_main.main() == 0
+
+
+def test_build_app_supports_mock_backend_mode(monkeypatch):
+    monkeypatch.setenv("PODCAST_BACKEND", "mock")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("QWEN_ASR_BASE_URL", raising=False)
+    monkeypatch.delenv("FISH_TTS_BASE_URL", raising=False)
+
+    app = build_app()
+
+    assert app["config"].gemini_api_key == "mock"
+    assert app["asr"].__class__.__name__ == "MockASRAdapter"
+    assert app["agent"].__class__.__name__ == "MockAgentAdapter"
+    assert app["tts"].__class__.__name__ == "MockTTSAdapter"

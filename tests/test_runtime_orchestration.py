@@ -22,6 +22,16 @@ class FakeAgent:
         return self.reply
 
 
+class FailingAgent:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls: list[list[dict]] = []
+
+    async def next_host_reply(self, history: list[dict]) -> str:
+        self.calls.append(history)
+        raise self.error
+
+
 class FakeTTS:
     def __init__(self, audio: bytes) -> None:
         self.audio = audio
@@ -30,6 +40,16 @@ class FakeTTS:
     async def synthesize(self, text: str) -> bytes:
         self.calls.append(text)
         return self.audio
+
+
+class FailingTTS:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls: list[str] = []
+
+    async def synthesize(self, text: str) -> bytes:
+        self.calls.append(text)
+        raise self.error
 
 
 class FakeAudioOut:
@@ -55,6 +75,16 @@ class FakeASR:
     async def transcribe_chunk(self, pcm_bytes: bytes) -> str:
         self.calls.append(pcm_bytes)
         return self.text
+
+
+class FailingASR:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls: list[bytes] = []
+
+    async def transcribe_chunk(self, pcm_bytes: bytes) -> str:
+        self.calls.append(pcm_bytes)
+        raise self.error
 
 
 class FakeMicrophone:
@@ -192,6 +222,56 @@ async def test_agent_reply_is_interrupted_when_new_audio_arrives(monkeypatch):
     assert fake_tts.calls == ["继续聊聊"]
     assert fake_audio.played == [b"audio"]
     assert fake_audio.stop_calls == 1
+    assert app["state_machine"].state == State.LISTENING
+    assert app["memory"].snapshot() == []
+
+
+@pytest.mark.asyncio
+async def test_handle_user_final_text_recovers_to_listening_when_agent_fails(
+    monkeypatch,
+):
+    app = _build_test_app(monkeypatch)
+    app["agent"] = FailingAgent(RuntimeError("llm unavailable"))
+
+    await handle_event(
+        app,
+        Event(type=EventType.USER_FINAL_TEXT, payload={"text": "你好"}),
+    )
+
+    assert app["state_machine"].state == State.LISTENING
+    assert app["state_machine"].current_agent_reply is None
+    assert app["memory"].snapshot() == [{"role": "user", "content": "你好"}]
+
+
+@pytest.mark.asyncio
+async def test_handle_agent_text_ready_recovers_without_persisting_reply_when_tts_fails(
+    monkeypatch,
+):
+    app = _build_test_app(monkeypatch)
+    app["tts"] = FailingTTS(RuntimeError("tts unavailable"))
+    app["audio_out"] = FakeAudioOut()
+
+    await handle_event(
+        app,
+        Event(type=EventType.AGENT_TEXT_READY, payload={"text": "继续聊聊"}),
+    )
+
+    assert app["state_machine"].state == State.LISTENING
+    assert app["state_machine"].current_agent_reply is None
+    assert app["memory"].snapshot() == []
+    assert app["audio_out"].played == []
+
+
+@pytest.mark.asyncio
+async def test_pump_microphone_once_recovers_to_listening_when_asr_fails(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    fake_asr = FailingASR(RuntimeError("asr unavailable"))
+    app["asr"] = fake_asr
+    app["audio_in"].push_frame(b"pcm-frame")
+
+    await pump_microphone_once(app)
+
+    assert fake_asr.calls == [b"pcm-frame"]
     assert app["state_machine"].state == State.LISTENING
     assert app["memory"].snapshot() == []
 
