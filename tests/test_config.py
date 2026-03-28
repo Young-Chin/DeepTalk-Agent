@@ -44,3 +44,17 @@ def test_load_config_rejects_non_ascii_gemini_api_key(monkeypatch):
 
     with pytest.raises(ConfigError, match="GEMINI_API_KEY must contain only ASCII"):
         load_config()
+
+
+def test_load_config_allows_mlx_qwen3_tts_without_remote_fish_url(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("QWEN_ASR_BASE_URL", "http://localhost:8001")
+    monkeypatch.delenv("FISH_TTS_BASE_URL", raising=False)
+    monkeypatch.setenv("TTS_BACKEND", "mlx_qwen3")
+    monkeypatch.setenv("MLX_TTS_MODEL", "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit")
+    monkeypatch.setenv("MLX_TTS_LANGUAGE", "zh")
+
+    cfg = load_config()
+
+    assert cfg.tts_backend == "mlx_qwen3"
+    assert cfg.fish_tts_base_url is None

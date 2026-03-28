@@ -68,8 +68,27 @@ python3 -m app.main
 
 - 两个模型都已经在这台机器上完成了本地实测。
 - ASR 已经接入当前工程，可通过 `ASR_BACKEND=mlx` 启用。
-- TTS 模型已经通过 `mlx-audio` 命令行验证可生成中文 WAV，但还没有正式接入当前 runtime。
+- TTS 已经可以通过 `TTS_BACKEND=mlx_qwen3` 接入当前 runtime。
 - 相比之下，`mlx-community/Kokoro-82M-4bit` 当前主要受 `mlx-audio` / `mlx_lm` 版本兼容问题影响，暂不作为默认推进方案。
+
+推荐环境变量：
+
+```bash
+ASR_BACKEND=mlx
+MLX_ASR_MODEL=mlx-community/Qwen3-ASR-0.6B-4bit
+MLX_ASR_LANGUAGE=zh
+
+TTS_BACKEND=mlx_qwen3
+MLX_TTS_MODEL=mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit
+MLX_TTS_LANGUAGE=zh
+MLX_TTS_VOICE=
+```
+
+说明：
+
+- `TTS_BACKEND=fish` 继续走原来的远端 Fish TTS。
+- `TTS_BACKEND=mlx_qwen3` 会在本机直接加载 `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`。
+- 当前 `MLX_TTS_VOICE` 留空即可，先使用模型默认音色；后续可以再补更细的音色选择和 persona 映射。
 
 本地手工验证命令：
 

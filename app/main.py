@@ -18,6 +18,7 @@ from app.memory.session_store import SessionStore
 from app.observability.logger import configure_logging, log_timing
 from app.state_machine import ConversationStateMachine
 from app.tts.fish_adapter import FishTTSAdapter
+from app.tts.qwen_adapter import MLXQwenTTSAdapter
 
 LOGGER = logging.getLogger("podcast.runtime")
 
@@ -28,6 +29,7 @@ def _build_mock_config() -> AppConfig:
         qwen_asr_base_url="mock://asr",
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
+        tts_backend="mock",
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
         vad_interrupt_ms=int(os.getenv("VAD_INTERRUPT_MS", "200")),
@@ -54,6 +56,25 @@ def _build_asr(config: AppConfig, backend: str):
     return QwenASRAdapter(config.qwen_asr_base_url), "qwen"
 
 
+def _build_tts(config: AppConfig, backend: str):
+    if backend == "mock":
+        from app.mocks import MockTTSAdapter
+
+        return MockTTSAdapter(sample_rate=config.audio_sample_rate), "mock"
+    if config.tts_backend == "mlx_qwen3":
+        return (
+            MLXQwenTTSAdapter(
+                model=config.mlx_tts_model,
+                lang_code=config.mlx_tts_language,
+                voice=config.mlx_tts_voice,
+            ),
+            "mlx_qwen3",
+        )
+    if config.fish_tts_base_url is None:
+        raise RuntimeError("FISH_TTS_BASE_URL is required for TTS_BACKEND=fish")
+    return FishTTSAdapter(config.fish_tts_base_url), "fish"
+
+
 def build_app() -> dict:
     backend = os.getenv("PODCAST_BACKEND", "").strip().lower()
     if backend == "mock":
@@ -71,15 +92,15 @@ def build_app() -> dict:
         sounddevice_module = None
         numpy_module = None
     if backend == "mock":
-        from app.mocks import MockAgentAdapter, MockTTSAdapter
+        from app.mocks import MockAgentAdapter
 
         asr, asr_provider = _build_asr(config, backend)
         agent = MockAgentAdapter()
-        tts = MockTTSAdapter(sample_rate=config.audio_sample_rate)
+        tts, tts_provider = _build_tts(config, backend)
     else:
         asr, asr_provider = _build_asr(config, backend)
         agent = GeminiAdapter(config.gemini_api_key)
-        tts = FishTTSAdapter(config.fish_tts_base_url)
+        tts, tts_provider = _build_tts(config, backend)
 
     return {
         "config": config,
@@ -93,6 +114,7 @@ def build_app() -> dict:
             numpy_module=numpy_module,
         ),
         "asr_provider": asr_provider,
+        "tts_provider": tts_provider,
         "asr": asr,
         "agent": agent,
         "tts": tts,
@@ -149,7 +171,7 @@ async def handle_event(app: dict, event: Event) -> None:
                 LOGGER,
                 component="tts",
                 operation="synthesize",
-                provider="fish",
+                provider=app["tts_provider"],
             ):
                 audio_bytes = await app["tts"].synthesize(text)
             await app["audio_out"].play(audio_bytes)
