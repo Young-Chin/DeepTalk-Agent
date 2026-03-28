@@ -8,6 +8,8 @@ from app.main import (
     consume_next_event,
     handle_event,
     pump_microphone_once,
+    run_audio_demo,
+    run_text_demo,
     run_self_test,
     start_audio_input,
     stop_audio_input,
@@ -374,6 +376,9 @@ async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
 
     assert "ASR backend: qwen" in lines
     assert "TTS backend: fish" in lines
+    assert "LLM model: qwen3.5-flash" in lines
+    assert "ASR model: http://localhost:8001" in lines
+    assert "TTS model: http://localhost:8002" in lines
     assert "Input device: Fake Microphone" in lines
     assert "Output device: Fake Speaker" in lines
     assert "Playback mode: real" in lines
@@ -414,3 +419,39 @@ async def test_run_self_test_reports_playback_failure_instead_of_crashing(monkey
     await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
 
     assert "Playback invoked: unavailable (speaker unavailable)" in lines
+
+
+@pytest.mark.asyncio
+async def test_run_text_demo_drives_llm_tts_and_playback(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    app["agent"] = FakeAgent("欢迎来到节目")
+    app["tts"] = FakeTTS(b"audio")
+    app["audio_out"] = FakeAudioOut()
+    lines: list[str] = []
+
+    await run_text_demo(app, "请先自我介绍一下", printer=lines.append)
+
+    assert "Text demo mode" in lines
+    assert "LLM model: qwen3.5-flash" in lines
+    assert "TTS backend: fish" in lines
+    assert app["audio_out"].played == [b"audio"]
+    assert app["memory"].snapshot()[-1]["content"] == "欢迎来到节目"
+
+
+@pytest.mark.asyncio
+async def test_run_audio_demo_drives_asr_llm_tts_and_playback(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    app["asr"] = FakeASR("这是脚本化转写")
+    app["agent"] = FakeAgent("欢迎来到节目")
+    app["tts"] = FakeTTS(b"audio")
+    app["audio_out"] = FakeAudioOut()
+    lines: list[str] = []
+
+    await run_audio_demo(app, b"pcm-frame", printer=lines.append)
+
+    assert "Audio demo mode" in lines
+    assert "ASR backend: qwen" in lines
+    assert "LLM model: qwen3.5-flash" in lines
+    assert "TTS backend: fish" in lines
+    assert app["audio_out"].played == [b"audio"]
+    assert app["memory"].snapshot()[0]["content"] == "这是脚本化转写"

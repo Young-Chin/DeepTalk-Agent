@@ -3,6 +3,73 @@
 本项目是一个本地 CLI Demo，用来验证中文访谈播客的人机闭环：
 麦克风输入 -> ASR -> 主持人式 LLM 回复 -> TTS 播放，并支持半双工打断。
 
+## Quick Start
+
+如果你现在就想在本地试用，建议按这个最短路径来：
+
+1. 安装依赖
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m pip install -U mlx-audio
+```
+
+2. 准备环境变量
+
+```bash
+cp .env.example .env
+```
+
+然后把 `.env` 至少改成这组：
+
+```bash
+GEMINI_API_KEY=你的 Bearer token
+LLM_BASE_URL=https://model-api.skyengine.com.cn/v1/chat/completions
+LLM_MODEL=qwen3.5-flash
+
+ASR_BACKEND=mlx
+MLX_ASR_MODEL=mlx-community/Qwen3-ASR-0.6B-4bit
+MLX_ASR_LANGUAGE=zh
+
+TTS_BACKEND=mlx_qwen3
+MLX_TTS_MODEL=mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit
+MLX_TTS_LANGUAGE=zh
+```
+
+3. 先跑一次自检
+
+```bash
+PODCAST_SELF_TEST=1 python3 -m app.main
+```
+
+4. 如果你想先不打开麦克风，直接验证 `LLM + TTS + 播放`
+
+```bash
+PODCAST_TEXT_DEMO="请先做一个简短的自我介绍" python3 -m app.main
+```
+
+5. 如果你想验证 `ASR + LLM + TTS + 播放` 的完整链路，但不想真人口播
+
+先准备一段本地 wav：
+
+```bash
+mkdir -p tmp/demo
+say -v Tingting -o tmp/demo/input.aiff "你好，请介绍一下你自己。"
+afconvert -f WAVE -d LEI16@16000 -c 1 tmp/demo/input.aiff tmp/demo/input.wav
+```
+
+然后运行：
+
+```bash
+PODCAST_DEMO_AUDIO=tmp/demo/input.wav python3 -m app.main
+```
+
+6. 最后再跑真人麦克风模式
+
+```bash
+python3 -m app.main
+```
+
 ## Setup
 
 1. 安装依赖：
@@ -32,6 +99,42 @@ python3 -m app.main
 ```
 
 启动后会进入实时音频循环并持续等待语音输入。
+
+## Text Demo Mode
+
+如果你想在真正打开麦克风前，先确认 `LLM + TTS + 播放` 这半条链路是通的，可以直接跑文本 demo：
+
+```bash
+PODCAST_TEXT_DEMO="请先做一个简短的自我介绍" python3 -m app.main
+```
+
+text demo 模式会：
+
+- 直接把给定文本当作用户输入
+- 调用当前配置的 LLM
+- 再调用当前配置的 TTS
+- 最后触发本地播放
+
+这条路径很适合在 demo 前快速确认：
+
+- LLM endpoint / token 是否正确
+- TTS backend 是否可用
+- 扬声器播放是否正常
+- 当前本地模型组合是否至少能跑通后半条链路
+
+## Audio Demo Mode
+
+如果你想在不真人口播的前提下，脚本化验证 `ASR -> LLM -> TTS -> 播放` 的完整链路，可以提供一段本地音频：
+
+```bash
+PODCAST_DEMO_AUDIO=tmp/demo/input.wav python3 -m app.main
+```
+
+说明：
+
+- 支持直接读取 `.wav` 的 PCM 数据。
+- 这条路径适合做可重复 demo、回归测试和现场演示前检查。
+- 推荐用 16kHz 单声道 wav，这样最接近当前 ASR runtime 的输入形式。
 
 ## Local MLX ASR
 
@@ -140,10 +243,12 @@ self-test 会打印：
 
 - 当前 ASR backend
 - 当前 TTS backend
+- 当前 LLM model
+- 当前 ASR model
+- 当前 TTS model
 - 当前输入设备
 - 当前输出设备
 - 当前播放模式（`real` 或 `memory`）
-- 当前 ASR backend 会通过后续 ASR 结果间接体现；如果切到 `ASR_BACKEND=mlx`，这里走的是本地 MLX 推理
 - 是否检测到 speech frame
 - 是否拿到 ASR 文本
 - 是否成功生成 TTS 音频
@@ -178,6 +283,7 @@ PODCAST_BACKEND=mock python3 -m app.main
 - `python3 -m app.main`：真实设备模式可在本机正常启动。
 - `PODCAST_BACKEND=mock python3 -m app.main`：mock 模式可在本机正常启动，并且 `Ctrl+C` 可干净退出。
 - `PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main`：会输出输入/输出设备、speech frame、ASR、TTS 与播放调用状态，便于快速诊断本地环境。
+- `PODCAST_TEXT_DEMO="请先做一个简短的自我介绍" python3 -m app.main`：可在不启用麦克风的前提下直接验证 `LLM + TTS + 播放` 链路。
 - `python3 -m mlx_audio.stt.generate --model mlx-community/Qwen3-ASR-0.6B-4bit --audio tmp/asr/sample.wav --output-path tmp/asr/sample.txt --format txt --language zh --verbose`：本机实测可完成中文转写，处理时间约 `1.95s`，峰值内存约 `1.37 GB`。
 - `python3 -m mlx_audio.tts.generate --model mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit --text "你好，我们现在在测试本地中文语音合成。" --output_path tmp/qwen3_tts --file_prefix qwen3_tts_test --audio_format wav --join_audio --verbose`：本机实测可生成中文 WAV，处理时间约 `6.02s`，峰值内存约 `3.97 GB`。
 - 手工语音链路检查：代码层面已具备试跑条件，但真实 ASR / TTS 质量和本地模型部署表现仍需实机验证。

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import importlib
 import logging
 import os
 import time
+import wave
 from collections.abc import Callable
+from pathlib import Path
 
 from app.bus import Event, EventBus, EventType
 from app.agent.gemini_adapter import GeminiAdapter
@@ -140,6 +143,33 @@ def _print_turn_latency(turn_started_at: float | None, printer: Callable[[str], 
     printer(f"Turn latency: {elapsed_ms} ms")
 
 
+def _describe_asr_model(app: dict) -> str:
+    config: AppConfig = app["config"]
+    if app["asr_provider"] == "mlx":
+        return config.mlx_asr_model
+    if app["asr_provider"] == "mock":
+        return "mock"
+    return config.qwen_asr_base_url or "unconfigured"
+
+
+def _describe_tts_model(app: dict) -> str:
+    config: AppConfig = app["config"]
+    if app["tts_provider"] == "mlx_qwen3":
+        return config.mlx_tts_model
+    if app["tts_provider"] == "mock":
+        return "mock"
+    return config.fish_tts_base_url or "unconfigured"
+
+
+def _load_demo_audio_bytes(path: str) -> bytes:
+    audio_path = Path(path)
+    raw = audio_path.read_bytes()
+    if raw.startswith(b"RIFF") and b"WAVE" in raw[:16]:
+        with wave.open(io.BytesIO(raw), "rb") as wav_file:
+            return wav_file.readframes(wav_file.getnframes())
+    return raw
+
+
 async def handle_event(app: dict, event: Event) -> None:
     machine: ConversationStateMachine = app["state_machine"]
 
@@ -248,6 +278,9 @@ async def run_self_test(
     printer("Self-test mode")
     printer(f"ASR backend: {app['asr_provider']}")
     printer(f"TTS backend: {app['tts_provider']}")
+    printer(f"LLM model: {app['config'].llm_model}")
+    printer(f"ASR model: {_describe_asr_model(app)}")
+    printer(f"TTS model: {_describe_tts_model(app)}")
     printer(f"Input device: {app['audio_in'].describe_input_target()}")
     printer(f"Output device: {app['audio_out'].describe_output_target()}")
     printer(f"Playback mode: {app['audio_out'].playback_mode}")
@@ -295,6 +328,55 @@ async def run_self_test(
     )
 
 
+async def run_text_demo(
+    app: dict,
+    text: str,
+    *,
+    printer: Callable[[str], None] = print,
+) -> None:
+    printer("Text demo mode")
+    printer(f"LLM model: {app['config'].llm_model}")
+    printer(f"TTS backend: {app['tts_provider']}")
+    printer(f"TTS model: {_describe_tts_model(app)}")
+    await handle_event(
+        app,
+        Event(
+            type=EventType.USER_FINAL_TEXT,
+            payload={"text": text, "turn_started_at": time.perf_counter()},
+        ),
+    )
+
+
+async def run_audio_demo(
+    app: dict,
+    audio_bytes: bytes,
+    *,
+    printer: Callable[[str], None] = print,
+) -> None:
+    printer("Audio demo mode")
+    printer(f"ASR backend: {app['asr_provider']}")
+    printer(f"LLM model: {app['config'].llm_model}")
+    printer(f"TTS backend: {app['tts_provider']}")
+    printer(f"ASR model: {_describe_asr_model(app)}")
+    printer(f"TTS model: {_describe_tts_model(app)}")
+
+    turn_started_at = time.perf_counter()
+    with log_timing(
+        LOGGER,
+        component="asr",
+        operation="transcribe_chunk",
+        provider=app["asr_provider"],
+    ):
+        text = await app["asr"].transcribe_chunk(audio_bytes)
+    await handle_event(
+        app,
+        Event(
+            type=EventType.USER_FINAL_TEXT,
+            payload={"text": text, "turn_started_at": turn_started_at},
+        ),
+    )
+
+
 def start_audio_input(app: dict) -> None:
     app["audio_in"].start_device_capture()
 
@@ -309,6 +391,14 @@ async def run() -> None:
     print("DeepTalk Agent CLI started. Press Ctrl+C to exit.")
     if os.getenv("PODCAST_SELF_TEST", "").strip().lower() in {"1", "true", "yes", "on"}:
         await run_self_test(app)
+        return
+    text_demo = os.getenv("PODCAST_TEXT_DEMO", "").strip()
+    if text_demo:
+        await run_text_demo(app, text_demo)
+        return
+    audio_demo_path = os.getenv("PODCAST_DEMO_AUDIO", "").strip()
+    if audio_demo_path:
+        await run_audio_demo(app, _load_demo_audio_bytes(audio_demo_path))
         return
     try:
         start_audio_input(app)
