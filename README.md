@@ -40,6 +40,27 @@ mock 模式下：
 - 麦克风和本地播放仍然使用真实音频设备。
 - ASR / 主持人回复 / TTS 使用内置 mock backend。
 - 不需要配置 `GEMINI_API_KEY`、`QWEN_ASR_BASE_URL`、`FISH_TTS_BASE_URL`。
+- 每轮会打印 `User:`、`Host:` 和 `Turn latency:`，更适合拿来做本地联调。
+
+## Self-Test Mode
+
+如果你想先做一次明确的本机诊断，可以直接跑 self-test：
+
+```bash
+PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main
+```
+
+self-test 会打印：
+
+- 当前输入设备
+- 当前输出设备
+- 当前播放模式（`real` 或 `memory`）
+- 是否检测到 speech frame
+- 是否拿到 ASR 文本
+- 是否成功生成 TTS 音频
+- 是否真正调用了播放
+
+如果当前机器没有安装 `sounddevice` 或 `numpy`，程序会自动退回 `memory` 播放模式，让 mock / dry-run 逻辑继续可用，而不是直接因为本地音频依赖缺失而中断。
 
 ## Speaker Check
 
@@ -64,9 +85,10 @@ PODCAST_BACKEND=mock python3 -m app.main
 
 ## Verification Status
 
-- `python3 -m pytest -v`：56 个测试全部通过，覆盖 config、event bus、session store、adapter compatibility、mock backends、state machine、runtime orchestration、VAD、音频设备与播放格式处理。
+- `python3 -m pytest -v`：测试覆盖 config、event bus、session store、adapter compatibility、mock backends、state machine、runtime orchestration、VAD、音频设备、self-test 与播放 fallback 行为。
 - `python3 -m app.main`：真实设备模式可在本机正常启动。
 - `PODCAST_BACKEND=mock python3 -m app.main`：mock 模式可在本机正常启动，并且 `Ctrl+C` 可干净退出。
+- `PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main`：会输出输入/输出设备、speech frame、ASR、TTS 与播放调用状态，便于快速诊断本地环境。
 - 手工语音链路检查：代码层面已具备试跑条件，但真实 ASR / TTS 质量和本地模型部署表现仍需实机验证。
 
 ## Latency Notes

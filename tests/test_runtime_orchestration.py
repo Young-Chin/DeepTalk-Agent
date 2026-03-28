@@ -1,11 +1,14 @@
 import pytest
+from unittest.mock import patch
 
 from app.bus import Event, EventType
+from app.audio.out_stream import AudioOutput
 from app.main import (
     build_app,
     consume_next_event,
     handle_event,
     pump_microphone_once,
+    run_self_test,
     start_audio_input,
     stop_audio_input,
 )
@@ -57,14 +60,22 @@ class FakeAudioOut:
         self.played: list[bytes] = []
         self.stop_calls = 0
         self.is_playing = False
+        self.last_played: bytes | None = None
+        self.playback_mode = "real"
+        self.playback_invoked = False
 
     async def play(self, audio_bytes: bytes) -> None:
         self.played.append(audio_bytes)
         self.is_playing = True
+        self.last_played = audio_bytes
+        self.playback_invoked = True
 
     def stop(self) -> None:
         self.stop_calls += 1
         self.is_playing = False
+
+    def describe_output_target(self) -> str:
+        return "Fake Speaker"
 
 
 class FakeASR:
@@ -97,6 +108,18 @@ class FakeMicrophone:
 
     def stop_device_capture(self) -> None:
         self.stop_calls += 1
+
+    def describe_input_target(self) -> str:
+        return "Fake Microphone"
+
+
+class FailingAudioOut(FakeAudioOut):
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
+
+    async def play(self, audio_bytes: bytes) -> None:
+        raise self.error
 
 
 def _build_test_app(monkeypatch):
@@ -174,7 +197,8 @@ async def test_pump_microphone_once_transcribes_and_publishes_user_text(monkeypa
 
     assert fake_asr.calls == [b"pcm-frame"]
     assert event.type == EventType.USER_FINAL_TEXT
-    assert event.payload == {"text": "采访开始"}
+    assert event.payload["text"] == "采访开始"
+    assert isinstance(event.payload["turn_started_at"], float)
 
 
 @pytest.mark.asyncio
@@ -190,7 +214,8 @@ async def test_pump_microphone_once_batches_pending_speech_frames(monkeypatch):
     event = await app["bus"].next_event()
 
     assert fake_asr.calls == [b"frame-aframe-bframe-c"]
-    assert event.payload == {"text": "合并后的语句"}
+    assert event.payload["text"] == "合并后的语句"
+    assert isinstance(event.payload["turn_started_at"], float)
 
 
 @pytest.mark.asyncio
@@ -307,3 +332,83 @@ async def test_handle_event_prints_transcript_and_agent_reply(monkeypatch, capsy
     output = capsys.readouterr().out
     assert "User: 你好" in output
     assert "Host: 欢迎来到节目" in output
+
+
+@pytest.mark.asyncio
+async def test_handle_event_prints_turn_latency_when_turn_start_is_present(
+    monkeypatch, capsys
+):
+    app = _build_test_app(monkeypatch)
+    app["agent"] = FakeAgent("欢迎来到节目")
+    app["tts"] = FakeTTS(b"audio")
+    app["audio_out"] = FakeAudioOut()
+
+    with patch("app.main.time.perf_counter", return_value=100.123):
+        await handle_event(
+            app,
+            Event(
+                type=EventType.USER_FINAL_TEXT,
+                payload={"text": "你好", "turn_started_at": 100.0},
+            ),
+        )
+
+    output = capsys.readouterr().out
+    assert "Turn latency: 123 ms" in output
+
+
+@pytest.mark.asyncio
+async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    app["audio_in"].push_frame(b"pcm-frame")
+    app["asr"] = FakeASR("你好，世界")
+    app["tts"] = FakeTTS(b"audio")
+    app["audio_out"] = FakeAudioOut()
+    app["audio_in"].start_device_capture = lambda: None
+    app["audio_in"].stop_device_capture = lambda: None
+    app["audio_in"].describe_input_target = lambda: "Fake Microphone"
+    app["audio_in"].is_speech_frame = lambda frame: True
+    app["audio_out"].describe_output_target = lambda: "Fake Speaker"
+    lines: list[str] = []
+
+    await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
+
+    assert "Input device: Fake Microphone" in lines
+    assert "Output device: Fake Speaker" in lines
+    assert "Playback mode: real" in lines
+    assert "Speech frame detected: yes" in lines
+    assert "ASR text: 你好，世界" in lines
+    assert "TTS audio bytes: 5" in lines
+    assert "Playback invoked: yes" in lines
+
+
+@pytest.mark.asyncio
+async def test_run_self_test_reports_memory_fallback_without_false_playback_success(
+    monkeypatch,
+):
+    app = _build_test_app(monkeypatch)
+    app["audio_in"].start_device_capture = lambda: None
+    app["audio_in"].stop_device_capture = lambda: None
+    app["audio_in"].describe_input_target = lambda: "Fake Microphone"
+    app["audio_out"] = AudioOutput(sounddevice_module=None, numpy_module=None)
+    app["tts"] = FakeTTS(b"audio")
+    lines: list[str] = []
+
+    await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
+
+    assert "Playback mode: memory" in lines
+    assert "Playback invoked: no" in lines
+
+
+@pytest.mark.asyncio
+async def test_run_self_test_reports_playback_failure_instead_of_crashing(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    app["audio_in"].start_device_capture = lambda: None
+    app["audio_in"].stop_device_capture = lambda: None
+    app["audio_in"].describe_input_target = lambda: "Fake Microphone"
+    app["audio_out"] = FailingAudioOut(RuntimeError("speaker unavailable"))
+    app["tts"] = FakeTTS(b"audio")
+    lines: list[str] = []
+
+    await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
+
+    assert "Playback invoked: unavailable (speaker unavailable)" in lines

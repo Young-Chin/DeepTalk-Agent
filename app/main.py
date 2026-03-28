@@ -4,6 +4,8 @@ import asyncio
 import importlib
 import logging
 import os
+import time
+from collections.abc import Callable
 
 from app.bus import Event, EventBus, EventType
 from app.agent.gemini_adapter import GeminiAdapter
@@ -81,11 +83,19 @@ def _recover_to_listening(app: dict, component: str, exc: Exception) -> None:
     app["state_machine"].on_interrupt()
 
 
+def _print_turn_latency(turn_started_at: float | None, printer: Callable[[str], None] = print) -> None:
+    if turn_started_at is None:
+        return
+    elapsed_ms = int(round((time.perf_counter() - turn_started_at) * 1000))
+    printer(f"Turn latency: {elapsed_ms} ms")
+
+
 async def handle_event(app: dict, event: Event) -> None:
     machine: ConversationStateMachine = app["state_machine"]
 
     if event.type == EventType.USER_FINAL_TEXT:
         text = event.payload["text"]
+        turn_started_at = event.payload.get("turn_started_at")
         print(f"User: {text}")
         machine.on_user_final_text(text)
         try:
@@ -101,12 +111,16 @@ async def handle_event(app: dict, event: Event) -> None:
             return
         await handle_event(
             app,
-            Event(type=EventType.AGENT_TEXT_READY, payload={"text": reply}),
+            Event(
+                type=EventType.AGENT_TEXT_READY,
+                payload={"text": reply, "turn_started_at": turn_started_at},
+            ),
         )
         return
 
     if event.type == EventType.AGENT_TEXT_READY:
         text = event.payload["text"]
+        turn_started_at = event.payload.get("turn_started_at")
         print(f"Host: {text}")
         machine.on_agent_reply_ready(text)
         try:
@@ -124,8 +138,10 @@ async def handle_event(app: dict, event: Event) -> None:
         if app["audio_in"].has_pending_frame():
             await app["audio_in"].read_frame()
             await handle_event(app, Event(type=EventType.INTERRUPT, payload={}))
+            _print_turn_latency(turn_started_at)
             return
         machine.on_playback_finished()
+        _print_turn_latency(turn_started_at)
         return
 
     if event.type == EventType.INTERRUPT:
@@ -145,6 +161,7 @@ async def pump_microphone_once(app: dict) -> None:
     first_frame = await app["audio_in"].read_frame()
     if not app["audio_in"].is_speech_frame(first_frame):
         return
+    turn_started_at = time.perf_counter()
     pending_frames = app["audio_in"].drain_pending_frames()
     if pending_frames:
         chunk = b"".join([first_frame, *pending_frames])
@@ -165,7 +182,64 @@ async def pump_microphone_once(app: dict) -> None:
         _recover_to_listening(app, "asr", exc)
         return
     await app["bus"].publish(
-        Event(type=EventType.USER_FINAL_TEXT, payload={"text": text}),
+        Event(
+            type=EventType.USER_FINAL_TEXT,
+            payload={"text": text, "turn_started_at": turn_started_at},
+        ),
+    )
+
+
+async def run_self_test(
+    app: dict,
+    *,
+    printer: Callable[[str], None] = print,
+    speech_timeout_s: float = 3.0,
+) -> None:
+    printer("Self-test mode")
+    printer(f"Input device: {app['audio_in'].describe_input_target()}")
+    printer(f"Output device: {app['audio_out'].describe_output_target()}")
+    printer(f"Playback mode: {app['audio_out'].playback_mode}")
+
+    transcript: str | None = None
+    started_audio = False
+    try:
+        start_audio_input(app)
+        started_audio = True
+        try:
+            frame = await asyncio.wait_for(app["audio_in"].read_frame(), timeout=speech_timeout_s)
+        except asyncio.TimeoutError:
+            printer("Speech frame detected: no")
+        else:
+            if app["audio_in"].is_speech_frame(frame):
+                printer("Speech frame detected: yes")
+                try:
+                    transcript = await app["asr"].transcribe_chunk(frame)
+                except Exception as exc:
+                    printer(f"ASR text: unavailable ({exc})")
+                else:
+                    printer(f"ASR text: {transcript}")
+            else:
+                printer("Speech frame detected: no")
+    except RuntimeError as exc:
+        printer(f"Speech frame detected: unavailable ({exc})")
+    finally:
+        if started_audio:
+            stop_audio_input(app)
+
+    tts_text = transcript or "self test"
+    try:
+        audio_bytes = await app["tts"].synthesize(tts_text)
+    except Exception as exc:
+        printer(f"TTS audio bytes: unavailable ({exc})")
+        return
+    printer(f"TTS audio bytes: {len(audio_bytes)}")
+    try:
+        await app["audio_out"].play(audio_bytes)
+    except Exception as exc:
+        printer(f"Playback invoked: unavailable ({exc})")
+        return
+    printer(
+        f"Playback invoked: {'yes' if getattr(app['audio_out'], 'playback_invoked', False) else 'no'}"
     )
 
 
@@ -181,6 +255,9 @@ async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
     print("DeepTalk Agent CLI started. Press Ctrl+C to exit.")
+    if os.getenv("PODCAST_SELF_TEST", "").strip().lower() in {"1", "true", "yes", "on"}:
+        await run_self_test(app)
+        return
     try:
         start_audio_input(app)
     except RuntimeError as exc:
