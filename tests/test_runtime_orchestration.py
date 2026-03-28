@@ -7,6 +7,7 @@ from app.main import (
     handle_event,
     pump_microphone_once,
     start_audio_input,
+    stop_audio_input,
 )
 from app.state_machine import State
 
@@ -59,9 +60,13 @@ class FakeASR:
 class FakeMicrophone:
     def __init__(self) -> None:
         self.start_calls = 0
+        self.stop_calls = 0
 
     def start_device_capture(self) -> None:
         self.start_calls += 1
+
+    def stop_device_capture(self) -> None:
+        self.stop_calls += 1
 
 
 def _build_test_app(monkeypatch):
@@ -197,3 +202,11 @@ def test_start_audio_input_starts_device_capture():
     start_audio_input(app)
 
     assert app["audio_in"].start_calls == 1
+
+
+def test_stop_audio_input_stops_device_capture():
+    app = {"audio_in": FakeMicrophone()}
+
+    stop_audio_input(app)
+
+    assert app["audio_in"].stop_calls == 1

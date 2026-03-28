@@ -115,6 +115,10 @@ def start_audio_input(app: dict) -> None:
     app["audio_in"].start_device_capture()
 
 
+def stop_audio_input(app: dict) -> None:
+    app["audio_in"].stop_device_capture()
+
+
 async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
@@ -124,9 +128,12 @@ async def run() -> None:
     except RuntimeError as exc:
         LOGGER.warning("audio input unavailable: %s", exc)
 
-    while True:
-        await pump_microphone_once(app)
-        await consume_next_event(app)
+    try:
+        while True:
+            await pump_microphone_once(app)
+            await consume_next_event(app)
+    finally:
+        stop_audio_input(app)
 
 
 if __name__ == "__main__":

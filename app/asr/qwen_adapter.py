@@ -14,4 +14,18 @@ class QwenASRAdapter:
                 content=pcm_bytes,
             )
             response.raise_for_status()
-            return response.json()["text"]
+            return self._extract_text(response.json())
+
+    def _extract_text(self, payload: object) -> str:
+        if isinstance(payload, dict):
+            text = payload.get("text")
+            if isinstance(text, str):
+                return text
+
+            result = payload.get("result")
+            if isinstance(result, dict):
+                nested_text = result.get("text")
+                if isinstance(nested_text, str):
+                    return nested_text
+
+        raise ValueError("Unsupported ASR response payload")
