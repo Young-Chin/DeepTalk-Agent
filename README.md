@@ -138,6 +138,8 @@ PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main
 
 self-test 会打印：
 
+- 当前 ASR backend
+- 当前 TTS backend
 - 当前输入设备
 - 当前输出设备
 - 当前播放模式（`real` 或 `memory`）
@@ -185,4 +187,13 @@ PODCAST_BACKEND=mock python3 -m app.main
 - `ASR final`：尚未测量。
 - `LLM`：尚未测量。
 - `TTS first-frame`：尚未测量。
-- 当前阶段优先级仍是验证本地或外部 ASR / TTS 的真实效果，并根据机器性能选择合适模型与量化方案。
+- 当前 runtime 已经会打印每轮 `Turn latency`，并继续保留 ASR / LLM / TTS 的单段 timing 日志，便于后续做端到端 latency profiling。
+- 下一阶段优先级是把这些 timing 汇总成更直观的 profiling 输出，并完成本地全链路稳定性验证。
+当前默认 LLM 接口配置为：
+
+```bash
+LLM_BASE_URL=https://model-api.skyengine.com.cn/v1/chat/completions
+LLM_MODEL=qwen3.5-flash
+```
+
+只要 `GEMINI_API_KEY` 里填入可用 Bearer token，runtime 就会按 OpenAI-compatible `chat/completions` 请求格式调用这个接口。

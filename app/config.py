@@ -14,6 +14,8 @@ class AppConfig:
     gemini_api_key: str
     qwen_asr_base_url: str | None
     fish_tts_base_url: str | None
+    llm_base_url: str = "https://model-api.skyengine.com.cn/v1/chat/completions"
+    llm_model: str = "qwen3.5-flash"
     asr_backend: str = "qwen"
     mlx_asr_model: str = "mlx-community/Qwen3-ASR-0.6B-4bit"
     mlx_asr_language: str = "zh"
@@ -88,6 +90,8 @@ def load_config() -> AppConfig:
         raise ConfigError("Missing required env: FISH_TTS_BASE_URL")
     return AppConfig(
         gemini_api_key=_require_ascii("GEMINI_API_KEY", _required("GEMINI_API_KEY")),
+        llm_base_url=os.getenv("LLM_BASE_URL", "https://model-api.skyengine.com.cn/v1/chat/completions"),
+        llm_model=os.getenv("LLM_MODEL", "qwen3.5-flash"),
         qwen_asr_base_url=qwen_asr_base_url,
         fish_tts_base_url=fish_tts_base_url,
         asr_backend=asr_backend,

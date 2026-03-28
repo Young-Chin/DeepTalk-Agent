@@ -13,6 +13,7 @@ def test_load_config_reads_required_values(monkeypatch):
     assert isinstance(cfg, AppConfig)
     assert cfg.audio_sample_rate == 16000
     assert cfg.gemini_api_key == "k"
+    assert cfg.llm_model == "qwen3.5-flash"
 
 
 def test_load_config_raises_when_required_missing(monkeypatch):
@@ -58,3 +59,16 @@ def test_load_config_allows_mlx_qwen3_tts_without_remote_fish_url(monkeypatch):
 
     assert cfg.tts_backend == "mlx_qwen3"
     assert cfg.fish_tts_base_url is None
+
+
+def test_load_config_reads_custom_llm_endpoint(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("QWEN_ASR_BASE_URL", "http://localhost:8001")
+    monkeypatch.setenv("FISH_TTS_BASE_URL", "http://localhost:8002")
+    monkeypatch.setenv("LLM_BASE_URL", "https://model-api.skyengine.com.cn/v1/chat/completions")
+    monkeypatch.setenv("LLM_MODEL", "qwen3.5-flash")
+
+    cfg = load_config()
+
+    assert cfg.llm_base_url == "https://model-api.skyengine.com.cn/v1/chat/completions"
+    assert cfg.llm_model == "qwen3.5-flash"

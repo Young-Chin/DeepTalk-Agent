@@ -372,6 +372,8 @@ async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
 
     await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
 
+    assert "ASR backend: qwen" in lines
+    assert "TTS backend: fish" in lines
     assert "Input device: Fake Microphone" in lines
     assert "Output device: Fake Speaker" in lines
     assert "Playback mode: real" in lines

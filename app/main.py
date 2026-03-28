@@ -26,6 +26,8 @@ LOGGER = logging.getLogger("podcast.runtime")
 def _build_mock_config() -> AppConfig:
     return AppConfig(
         gemini_api_key="mock",
+        llm_base_url="mock://llm",
+        llm_model="mock-llm",
         qwen_asr_base_url="mock://asr",
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
@@ -99,7 +101,11 @@ def build_app() -> dict:
         tts, tts_provider = _build_tts(config, backend)
     else:
         asr, asr_provider = _build_asr(config, backend)
-        agent = GeminiAdapter(config.gemini_api_key)
+        agent = GeminiAdapter(
+            config.gemini_api_key,
+            model=config.llm_model,
+            base_url=config.llm_base_url,
+        )
         tts, tts_provider = _build_tts(config, backend)
 
     return {
@@ -115,6 +121,7 @@ def build_app() -> dict:
         ),
         "asr_provider": asr_provider,
         "tts_provider": tts_provider,
+        "llm_provider": config.llm_model,
         "asr": asr,
         "agent": agent,
         "tts": tts,
@@ -239,6 +246,8 @@ async def run_self_test(
     speech_timeout_s: float = 3.0,
 ) -> None:
     printer("Self-test mode")
+    printer(f"ASR backend: {app['asr_provider']}")
+    printer(f"TTS backend: {app['tts_provider']}")
     printer(f"Input device: {app['audio_in'].describe_input_target()}")
     printer(f"Output device: {app['audio_out'].describe_output_target()}")
     printer(f"Playback mode: {app['audio_out'].playback_mode}")
