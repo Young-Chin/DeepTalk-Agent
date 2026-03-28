@@ -78,14 +78,33 @@ async def handle_event(app: dict, event: Event) -> None:
     raise ValueError(f"Unsupported event type: {event.type}")
 
 
+async def consume_next_event(app: dict) -> None:
+    event = await app["bus"].next_event()
+    await handle_event(app, event)
+
+
+async def pump_microphone_once(app: dict) -> None:
+    frame = await app["audio_in"].read_frame()
+    with log_timing(
+        LOGGER,
+        component="asr",
+        operation="transcribe_chunk",
+        provider="qwen",
+    ):
+        text = await app["asr"].transcribe_chunk(frame)
+    await app["bus"].publish(
+        Event(type=EventType.USER_FINAL_TEXT, payload={"text": text}),
+    )
+
+
 async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
     print("DeepTalk Agent CLI started. Press Ctrl+C to exit.")
 
     while True:
-        await asyncio.sleep(1)
-        _ = app["state_machine"].state
+        await pump_microphone_once(app)
+        await consume_next_event(app)
 
 
 if __name__ == "__main__":

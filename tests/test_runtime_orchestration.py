@@ -1,7 +1,7 @@
 import pytest
 
 from app.bus import Event, EventType
-from app.main import build_app, handle_event
+from app.main import build_app, consume_next_event, handle_event, pump_microphone_once
 from app.state_machine import State
 
 
@@ -35,6 +35,16 @@ class FakeAudioOut:
 
     def stop(self) -> None:
         self.stop_calls += 1
+
+
+class FakeASR:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.calls: list[bytes] = []
+
+    async def transcribe_chunk(self, pcm_bytes: bytes) -> str:
+        self.calls.append(pcm_bytes)
+        return self.text
 
 
 def _build_test_app(monkeypatch):
@@ -77,3 +87,39 @@ async def test_handle_interrupt_stops_audio_and_resets_state(monkeypatch):
 
     assert fake_audio.stop_calls == 1
     assert app["state_machine"].state == State.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_consume_next_event_reads_from_bus_and_processes_it(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    fake_agent = FakeAgent("欢迎来到节目")
+    fake_tts = FakeTTS(b"audio")
+    fake_audio = FakeAudioOut()
+    app["agent"] = fake_agent
+    app["tts"] = fake_tts
+    app["audio_out"] = fake_audio
+
+    await app["bus"].publish(
+        Event(type=EventType.USER_FINAL_TEXT, payload={"text": "你好"}),
+    )
+
+    await consume_next_event(app)
+
+    assert fake_agent.calls[0][-1]["content"] == "你好"
+    assert fake_audio.played == [b"audio"]
+    assert app["state_machine"].state == State.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_pump_microphone_once_transcribes_and_publishes_user_text(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    fake_asr = FakeASR("采访开始")
+    app["asr"] = fake_asr
+    app["audio_in"].push_frame(b"pcm-frame")
+
+    await pump_microphone_once(app)
+    event = await app["bus"].next_event()
+
+    assert fake_asr.calls == [b"pcm-frame"]
+    assert event.type == EventType.USER_FINAL_TEXT
+    assert event.payload == {"text": "采访开始"}
