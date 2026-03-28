@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import io
+import struct
+import threading
 import types
 import wave
 
@@ -150,3 +153,62 @@ async def test_audio_output_play_decodes_wav_and_uses_embedded_sample_rate():
     samples, samplerate = sounddevice.play_calls[0]
     assert samples == {"payload": b"\x01\x00\x02\x00", "dtype": "int16"}
     assert samplerate == 22050
+
+
+class _ThreadedRawInputStream:
+    """Fake RawInputStream that fires the callback from a background thread."""
+
+    def __init__(self, **kwargs) -> None:
+        self.kwargs = kwargs
+        self._callback = kwargs.get("callback")
+        self.started = False
+        self.stopped = False
+        self.closed = False
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self.started = True
+
+        def _run() -> None:
+            if self._callback is not None:
+                self._callback(self.kwargs["_frame"], None, None, None)
+
+        self._thread = threading.Thread(target=_run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _ThreadedSoundDeviceModule:
+    def __init__(self, frame: bytes) -> None:
+        self._frame = frame
+        self.streams: list[_ThreadedRawInputStream] = []
+
+    def RawInputStream(self, **kwargs):
+        kwargs["_frame"] = self._frame
+        stream = _ThreadedRawInputStream(**kwargs)
+        self.streams.append(stream)
+        return stream
+
+
+@pytest.mark.asyncio
+async def test_device_capture_delivers_speech_frame_from_background_thread():
+    """The sounddevice callback fires in an OS thread; frames must reach the
+    asyncio queue via call_soon_threadsafe so that read_frame() wakes up."""
+    speech_frame = struct.pack("<" + "h" * 480, *([500] * 480))
+    sounddevice = _ThreadedSoundDeviceModule(speech_frame)
+    microphone = MicrophoneInput(
+        sounddevice_module=sounddevice,
+        vad=None,
+        energy_threshold=250,
+    )
+
+    microphone.start_device_capture()
+
+    received = await asyncio.wait_for(microphone.read_frame(), timeout=1.0)
+    assert received == speech_frame
+

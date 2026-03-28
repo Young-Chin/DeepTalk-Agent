@@ -87,12 +87,21 @@ class MicrophoneInput:
 
     def start_device_capture(self) -> None:
         sounddevice = self._resolve_sounddevice()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        put_frame = self._queue.put_nowait
 
         def _callback(indata, frames, time_info, status) -> None:
             del frames, time_info, status
             frame = bytes(indata)
             if self.is_speech_frame(frame):
-                self.push_frame(frame)
+                if loop is not None:
+                    loop.call_soon_threadsafe(put_frame, frame)
+                else:
+                    put_frame(frame)
 
         self._stream = sounddevice.RawInputStream(
             samplerate=self.sample_rate,
