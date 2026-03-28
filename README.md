@@ -25,23 +25,39 @@ cp .env.example .env
 python3 -m app.main
 ```
 
-启动后会进入一个最小 CLI 循环并保持运行，当前版本主要用于搭建链路骨架。
+启动后会进入实时音频循环并持续等待语音输入。
+
+## Mock Mode
+
+在本地 ASR / TTS 服务还没部署完成前，可以先用 mock backend 跑通完整链路：
+
+```bash
+PODCAST_BACKEND=mock python3 -m app.main
+```
+
+mock 模式下：
+
+- 麦克风和本地播放仍然使用真实音频设备。
+- ASR / 主持人回复 / TTS 使用内置 mock backend。
+- 不需要配置 `GEMINI_API_KEY`、`QWEN_ASR_BASE_URL`、`FISH_TTS_BASE_URL`。
 
 ## Known Limits
 
 - 当前只支持半双工打断设计，不支持真正全双工对话。
-- 音频输入输出仍是 MVP 占位实现，后续会接入真实麦克风采集和播放链路。
-- 运行依赖外部 ASR、LLM、TTS 服务可用。
+- 打断与 turn segmentation 目前仍是 MVP 级实现，阈值和分段策略还需要实机调优。
+- 真实模式下仍依赖外部 ASR、LLM、TTS 服务可用。
+- mock 模式主要用于本地端到端联调，回复质量不代表最终模型效果。
 
 ## Verification Status
 
-- `python3 -m pytest -v`：11 个测试全部通过，覆盖 config、event bus、session store、adapter contract、state machine 和 CLI bootstrap。
-- `python3 -m app.main`：在本地 `.env` 存在时可成功启动并持续运行，已完成基础启动健检。
-- 手工链路检查：尚未完成。当前音频输入输出仍为占位实现，因此还不能真实验证 ASR final、主持人口播、播放中断等端到端行为。
+- `python3 -m pytest -v`：56 个测试全部通过，覆盖 config、event bus、session store、adapter compatibility、mock backends、state machine、runtime orchestration、VAD、音频设备与播放格式处理。
+- `python3 -m app.main`：真实设备模式可在本机正常启动。
+- `PODCAST_BACKEND=mock python3 -m app.main`：mock 模式可在本机正常启动，并且 `Ctrl+C` 可干净退出。
+- 手工语音链路检查：代码层面已具备试跑条件，但真实 ASR / TTS 质量和本地模型部署表现仍需实机验证。
 
 ## Latency Notes
 
 - `ASR final`：尚未测量。
 - `LLM`：尚未测量。
 - `TTS first-frame`：尚未测量。
-- 当前阶段优先级仍是把真实音频采集、播放和中断链路接起来，再进行时延记录与调优。
+- 当前阶段优先级仍是验证本地或外部 ASR / TTS 的真实效果，并根据机器性能选择合适模型与量化方案。
