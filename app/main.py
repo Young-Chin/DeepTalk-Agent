@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from app.bus import Event, EventBus, EventType
 from app.agent.gemini_adapter import GeminiAdapter
+from app.asr.mlx_adapter import MLXASRAdapter
 from app.asr.qwen_adapter import QwenASRAdapter
 from app.audio.in_stream import MicrophoneInput
 from app.audio.out_stream import AudioOutput
@@ -26,12 +27,31 @@ def _build_mock_config() -> AppConfig:
         gemini_api_key="mock",
         qwen_asr_base_url="mock://asr",
         fish_tts_base_url="mock://tts",
+        asr_backend="mock",
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
         vad_interrupt_ms=int(os.getenv("VAD_INTERRUPT_MS", "200")),
         turn_silence_ms=int(os.getenv("TURN_SILENCE_MS", "600")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
+
+
+def _build_asr(config: AppConfig, backend: str):
+    if backend == "mock":
+        from app.mocks import MockASRAdapter
+
+        return MockASRAdapter(), "mock"
+    if config.asr_backend == "mlx":
+        return (
+            MLXASRAdapter(
+                model=config.mlx_asr_model,
+                language=config.mlx_asr_language,
+            ),
+            "mlx",
+        )
+    if config.qwen_asr_base_url is None:
+        raise RuntimeError("QWEN_ASR_BASE_URL is required for ASR_BACKEND=qwen")
+    return QwenASRAdapter(config.qwen_asr_base_url), "qwen"
 
 
 def build_app() -> dict:
@@ -51,13 +71,13 @@ def build_app() -> dict:
         sounddevice_module = None
         numpy_module = None
     if backend == "mock":
-        from app.mocks import MockASRAdapter, MockAgentAdapter, MockTTSAdapter
+        from app.mocks import MockAgentAdapter, MockTTSAdapter
 
-        asr = MockASRAdapter()
+        asr, asr_provider = _build_asr(config, backend)
         agent = MockAgentAdapter()
         tts = MockTTSAdapter(sample_rate=config.audio_sample_rate)
     else:
-        asr = QwenASRAdapter(config.qwen_asr_base_url)
+        asr, asr_provider = _build_asr(config, backend)
         agent = GeminiAdapter(config.gemini_api_key)
         tts = FishTTSAdapter(config.fish_tts_base_url)
 
@@ -72,6 +92,7 @@ def build_app() -> dict:
             sounddevice_module=sounddevice_module,
             numpy_module=numpy_module,
         ),
+        "asr_provider": asr_provider,
         "asr": asr,
         "agent": agent,
         "tts": tts,
@@ -175,7 +196,7 @@ async def pump_microphone_once(app: dict) -> None:
             LOGGER,
             component="asr",
             operation="transcribe_chunk",
-            provider="qwen",
+            provider=app["asr_provider"],
         ):
             text = await app["asr"].transcribe_chunk(chunk)
     except Exception as exc:

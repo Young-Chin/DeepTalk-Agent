@@ -22,3 +22,16 @@ def test_load_config_raises_when_required_missing(monkeypatch):
 
     with pytest.raises(ConfigError):
         load_config()
+
+
+def test_load_config_allows_mlx_asr_without_remote_qwen_url(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.delenv("QWEN_ASR_BASE_URL", raising=False)
+    monkeypatch.setenv("ASR_BACKEND", "mlx")
+    monkeypatch.setenv("MLX_ASR_MODEL", "mlx-community/Qwen3-ASR-0.6B-4bit")
+    monkeypatch.setenv("FISH_TTS_BASE_URL", "http://localhost:8002")
+
+    cfg = load_config()
+
+    assert cfg.asr_backend == "mlx"
+    assert cfg.qwen_asr_base_url is None

@@ -19,6 +19,12 @@ cp .env.example .env
 
 3. 按你的服务地址和密钥填写 `.env`。
 
+如果你要试本地 MLX ASR，还需要额外安装一次可选依赖：
+
+```bash
+python3 -m pip install mlx-audio
+```
+
 ## Run
 
 ```bash
@@ -26,6 +32,30 @@ python3 -m app.main
 ```
 
 启动后会进入实时音频循环并持续等待语音输入。
+
+## Local MLX ASR
+
+当前已经支持把 ASR 切到本地 MLX backend。推荐先用下面这组环境变量：
+
+```bash
+ASR_BACKEND=mlx
+MLX_ASR_MODEL=mlx-community/Qwen3-ASR-0.6B-4bit
+MLX_ASR_LANGUAGE=zh
+```
+
+然后正常启动：
+
+```bash
+python3 -m app.main
+```
+
+说明：
+
+- `ASR_BACKEND=qwen` 继续走原来的远端 HTTP ASR。
+- `ASR_BACKEND=mlx` 会在本机直接加载 `mlx-community/Qwen3-ASR-0.6B-4bit`。
+- 首次启动会下载模型，后续会复用本地缓存。
+- 我在这台机器上实测，这个模型对一段约 9 秒中文样本的转写耗时约 `1.95s`，峰值内存约 `1.37 GB`。
+- 当前本地 MLX ASR 仍属于 MVP 接入，推理时会把每个语音 chunk 写成临时 WAV 再送进 `mlx-audio`，优先保证能跑通。
 
 ## Mock Mode
 
@@ -55,6 +85,7 @@ self-test 会打印：
 - 当前输入设备
 - 当前输出设备
 - 当前播放模式（`real` 或 `memory`）
+- 当前 ASR backend 会通过后续 ASR 结果间接体现；如果切到 `ASR_BACKEND=mlx`，这里走的是本地 MLX 推理
 - 是否检测到 speech frame
 - 是否拿到 ASR 文本
 - 是否成功生成 TTS 音频
@@ -89,6 +120,7 @@ PODCAST_BACKEND=mock python3 -m app.main
 - `python3 -m app.main`：真实设备模式可在本机正常启动。
 - `PODCAST_BACKEND=mock python3 -m app.main`：mock 模式可在本机正常启动，并且 `Ctrl+C` 可干净退出。
 - `PODCAST_BACKEND=mock PODCAST_SELF_TEST=1 python3 -m app.main`：会输出输入/输出设备、speech frame、ASR、TTS 与播放调用状态，便于快速诊断本地环境。
+- `python3 -m mlx_audio.stt.generate --model mlx-community/Qwen3-ASR-0.6B-4bit --audio tmp/asr/sample.wav --output-path tmp/asr/sample.txt --format txt --language zh --verbose`：本机实测可完成中文转写，处理时间约 `1.95s`，峰值内存约 `1.37 GB`。
 - 手工语音链路检查：代码层面已具备试跑条件，但真实 ASR / TTS 质量和本地模型部署表现仍需实机验证。
 
 ## Latency Notes

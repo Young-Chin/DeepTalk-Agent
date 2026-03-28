@@ -12,8 +12,11 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class AppConfig:
     gemini_api_key: str
-    qwen_asr_base_url: str
+    qwen_asr_base_url: str | None
     fish_tts_base_url: str
+    asr_backend: str = "qwen"
+    mlx_asr_model: str = "mlx-community/Qwen3-ASR-0.6B-4bit"
+    mlx_asr_language: str = "zh"
     audio_sample_rate: int = 16000
     vad_start_ms: int = 120
     vad_interrupt_ms: int = 200
@@ -38,6 +41,14 @@ def _int(name: str, default: int) -> int:
         raise ConfigError(f"Invalid int for {name}: {raw}") from exc
 
 
+def _optional(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def _load_dotenv(path: str = ".env") -> None:
     env_path = Path(path)
     if not env_path.exists():
@@ -53,10 +64,17 @@ def _load_dotenv(path: str = ".env") -> None:
 
 
 def load_config() -> AppConfig:
+    asr_backend = os.getenv("ASR_BACKEND", "qwen").strip().lower() or "qwen"
+    qwen_asr_base_url = _optional("QWEN_ASR_BASE_URL")
+    if asr_backend == "qwen" and qwen_asr_base_url is None:
+        raise ConfigError("Missing required env: QWEN_ASR_BASE_URL")
     return AppConfig(
         gemini_api_key=_required("GEMINI_API_KEY"),
-        qwen_asr_base_url=_required("QWEN_ASR_BASE_URL"),
+        qwen_asr_base_url=qwen_asr_base_url,
         fish_tts_base_url=_required("FISH_TTS_BASE_URL"),
+        asr_backend=asr_backend,
+        mlx_asr_model=os.getenv("MLX_ASR_MODEL", "mlx-community/Qwen3-ASR-0.6B-4bit"),
+        mlx_asr_language=os.getenv("MLX_ASR_LANGUAGE", "zh"),
         audio_sample_rate=_int("AUDIO_SAMPLE_RATE", 16000),
         vad_start_ms=_int("VAD_START_MS", 120),
         vad_interrupt_ms=_int("VAD_INTERRUPT_MS", 200),
