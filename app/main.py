@@ -67,6 +67,10 @@ async def handle_event(app: dict, event: Event) -> None:
         ):
             audio_bytes = await app["tts"].synthesize(text)
         await app["audio_out"].play(audio_bytes)
+        if app["audio_in"].has_pending_frame():
+            await app["audio_in"].read_frame()
+            await handle_event(app, Event(type=EventType.INTERRUPT, payload={}))
+            return
         machine.on_playback_finished()
         return
 

@@ -16,6 +16,9 @@ class MicrophoneInput:
     def push_frame(self, frame: bytes) -> None:
         self._queue.put_nowait(frame)
 
+    def has_pending_frame(self) -> bool:
+        return not self._queue.empty()
+
     async def read_frame(self) -> bytes:
         return await self._queue.get()
 
