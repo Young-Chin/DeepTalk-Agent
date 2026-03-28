@@ -112,6 +112,12 @@ class MicrophoneInput:
     async def read_frame(self) -> bytes:
         return await self._queue.get()
 
+    def drain_pending_frames(self) -> list[bytes]:
+        frames: list[bytes] = []
+        while not self._queue.empty():
+            frames.append(self._queue.get_nowait())
+        return frames
+
     async def frames(self) -> AsyncIterator[bytes]:
         while True:
             yield await self.read_frame()

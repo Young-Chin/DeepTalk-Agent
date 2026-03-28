@@ -143,6 +143,22 @@ async def test_pump_microphone_once_transcribes_and_publishes_user_text(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_pump_microphone_once_batches_pending_speech_frames(monkeypatch):
+    app = _build_test_app(monkeypatch)
+    fake_asr = FakeASR("合并后的语句")
+    app["asr"] = fake_asr
+    app["audio_in"].push_frame(b"frame-a")
+    app["audio_in"].push_frame(b"frame-b")
+    app["audio_in"].push_frame(b"frame-c")
+
+    await pump_microphone_once(app)
+    event = await app["bus"].next_event()
+
+    assert fake_asr.calls == [b"frame-aframe-bframe-c"]
+    assert event.payload == {"text": "合并后的语句"}
+
+
+@pytest.mark.asyncio
 async def test_pump_microphone_once_skips_non_speech_frames(monkeypatch):
     app = _build_test_app(monkeypatch)
     fake_asr = FakeASR("不会被调用")

@@ -88,16 +88,17 @@ async def consume_next_event(app: dict) -> None:
 
 
 async def pump_microphone_once(app: dict) -> None:
-    frame = await app["audio_in"].read_frame()
-    if not app["audio_in"].is_speech_frame(frame):
+    first_frame = await app["audio_in"].read_frame()
+    if not app["audio_in"].is_speech_frame(first_frame):
         return
+    chunk = b"".join([first_frame, *app["audio_in"].drain_pending_frames()])
     with log_timing(
         LOGGER,
         component="asr",
         operation="transcribe_chunk",
         provider="qwen",
     ):
-        text = await app["asr"].transcribe_chunk(frame)
+        text = await app["asr"].transcribe_chunk(chunk)
     await app["bus"].publish(
         Event(type=EventType.USER_FINAL_TEXT, payload={"text": text}),
     )
