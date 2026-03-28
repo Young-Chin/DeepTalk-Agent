@@ -69,3 +69,12 @@ def test_build_app_supports_mock_backend_mode(monkeypatch):
     assert app["asr"].__class__.__name__ == "MockASRAdapter"
     assert app["agent"].__class__.__name__ == "MockAgentAdapter"
     assert app["tts"].__class__.__name__ == "MockTTSAdapter"
+
+
+def test_build_app_enables_real_audio_output_modules(monkeypatch):
+    monkeypatch.setenv("PODCAST_BACKEND", "mock")
+
+    app = build_app()
+
+    assert app["audio_out"]._sounddevice is not None
+    assert app["audio_out"]._numpy is not None

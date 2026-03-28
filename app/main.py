@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 
@@ -41,6 +42,12 @@ def build_app() -> dict:
     bus = EventBus()
     memory = SessionStore()
     state_machine = ConversationStateMachine(memory=memory)
+    try:
+        sounddevice_module = importlib.import_module("sounddevice")
+        numpy_module = importlib.import_module("numpy")
+    except ModuleNotFoundError:
+        sounddevice_module = None
+        numpy_module = None
     if backend == "mock":
         from app.mocks import MockASRAdapter, MockAgentAdapter, MockTTSAdapter
 
@@ -58,7 +65,11 @@ def build_app() -> dict:
         "state_machine": state_machine,
         "memory": memory,
         "audio_in": MicrophoneInput(sample_rate=config.audio_sample_rate),
-        "audio_out": AudioOutput(sample_rate=config.audio_sample_rate),
+        "audio_out": AudioOutput(
+            sample_rate=config.audio_sample_rate,
+            sounddevice_module=sounddevice_module,
+            numpy_module=numpy_module,
+        ),
         "asr": asr,
         "agent": agent,
         "tts": tts,
