@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ConfigError(ValueError):
@@ -37,6 +38,20 @@ def _int(name: str, default: int) -> int:
         raise ConfigError(f"Invalid int for {name}: {raw}") from exc
 
 
+def _load_dotenv(path: str = ".env") -> None:
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+
+        key, value = stripped.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
 def load_config() -> AppConfig:
     return AppConfig(
         gemini_api_key=_required("GEMINI_API_KEY"),
@@ -48,3 +63,6 @@ def load_config() -> AppConfig:
         turn_silence_ms=_int("TURN_SILENCE_MS", 600),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
+
+
+__all__ = ["AppConfig", "ConfigError", "load_config", "_load_dotenv"]
