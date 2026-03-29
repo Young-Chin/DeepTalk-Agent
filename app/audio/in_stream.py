@@ -111,6 +111,21 @@ class MicrophoneInput:
         )
         self._stream.start()
 
+    def describe_input_target(self) -> str:
+        try:
+            sounddevice = self._resolve_sounddevice()
+        except RuntimeError:
+            return "unavailable (sounddevice unavailable)"
+        try:
+            default_device = getattr(sounddevice, "default").device
+            input_index = default_device[0] if isinstance(default_device, (list, tuple)) else default_device
+            device = sounddevice.query_devices(input_index, "input")
+        except Exception:
+            return "default input unavailable"
+        if isinstance(device, dict):
+            return str(device.get("name", "default input"))
+        return str(getattr(device, "name", "default input"))
+
     def stop_device_capture(self) -> None:
         if self._stream is None:
             return

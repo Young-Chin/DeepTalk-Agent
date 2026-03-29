@@ -118,6 +118,7 @@ async def test_audio_output_play_uses_sounddevice_and_numpy():
     assert samplerate == 16000
     assert output.is_playing is True
     assert output.last_played == b"\x01\x00\x02\x00"
+    assert output.playback_invoked is True
 
 
 def test_audio_output_stop_calls_sounddevice_stop():
@@ -131,11 +132,15 @@ def test_audio_output_stop_calls_sounddevice_stop():
 
 
 @pytest.mark.asyncio
-async def test_audio_output_play_requires_optional_dependencies():
+async def test_audio_output_play_falls_back_to_memory_when_optional_dependencies_missing():
     output = AudioOutput(sounddevice_module=None, numpy_module=None)
 
-    with pytest.raises(RuntimeError, match="sounddevice"):
-        await output.play(b"audio")
+    await output.play(b"audio")
+
+    assert output.is_playing is False
+    assert output.last_played == b"audio"
+    assert output.playback_mode == "memory"
+    assert output.playback_invoked is False
 
 
 @pytest.mark.asyncio
@@ -211,4 +216,3 @@ async def test_device_capture_delivers_speech_frame_from_background_thread():
 
     received = await asyncio.wait_for(microphone.read_frame(), timeout=1.0)
     assert received == speech_frame
-
