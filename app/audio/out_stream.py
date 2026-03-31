@@ -23,6 +23,7 @@ class AudioOutput:
         self._numpy = numpy_module
         self.is_playing = False
         self.last_played: bytes | None = None
+        self.playback_invoked = False
 
     def _resolve_sounddevice(self):
         if self._sounddevice is _AUTO:
@@ -30,9 +31,7 @@ class AudioOutput:
                 self._sounddevice = importlib.import_module("sounddevice")
             except ModuleNotFoundError:
                 self._sounddevice = None
-        if self._sounddevice is not None:
-            return self._sounddevice
-        raise RuntimeError("sounddevice is required for audio playback")
+        return self._sounddevice
 
     def _resolve_numpy(self):
         if self._numpy is _AUTO:
@@ -40,9 +39,27 @@ class AudioOutput:
                 self._numpy = importlib.import_module("numpy")
             except ModuleNotFoundError:
                 self._numpy = None
-        if self._numpy is not None:
-            return self._numpy
-        raise RuntimeError("numpy is required for audio playback")
+        return self._numpy
+
+    @property
+    def playback_mode(self) -> str:
+        if self._resolve_sounddevice() is not None and self._resolve_numpy() is not None:
+            return "real"
+        return "memory"
+
+    def describe_output_target(self) -> str:
+        sounddevice = self._resolve_sounddevice()
+        if sounddevice is None:
+            return "memory-fallback (sounddevice unavailable)"
+        try:
+            default_device = getattr(sounddevice, "default").device
+            output_index = default_device[1] if isinstance(default_device, (list, tuple)) else default_device
+            device = sounddevice.query_devices(output_index, "output")
+        except Exception:
+            return "default output unavailable"
+        if isinstance(device, dict):
+            return str(device.get("name", "default output"))
+        return str(getattr(device, "name", "default output"))
 
     def _decode_audio_bytes(self, audio_bytes: bytes) -> tuple[bytes, int]:
         if audio_bytes.startswith(b"RIFF") and b"WAVE" in audio_bytes[:16]:
@@ -51,13 +68,18 @@ class AudioOutput:
         return audio_bytes, self.sample_rate
 
     async def play(self, audio_bytes: bytes) -> None:
+        self.last_played = audio_bytes
+        self.playback_invoked = False
         sounddevice = self._resolve_sounddevice()
         numpy_module = self._resolve_numpy()
+        if sounddevice is None or numpy_module is None:
+            self.is_playing = False
+            return
         decoded_bytes, sample_rate = self._decode_audio_bytes(audio_bytes)
         samples = numpy_module.frombuffer(decoded_bytes, dtype=numpy_module.int16)
         sounddevice.play(samples, sample_rate)
+        self.playback_invoked = bool(audio_bytes)
         self.is_playing = bool(audio_bytes)
-        self.last_played = audio_bytes
 
     async def wait(self) -> None:
         """Wait for playback to complete (blocking)."""
@@ -68,6 +90,7 @@ class AudioOutput:
         self.is_playing = False
 
     def stop(self) -> None:
-        if self._sounddevice not in (_AUTO, None):
-            self._sounddevice.stop()
+        sounddevice = self._resolve_sounddevice()
+        if sounddevice is not None:
+            sounddevice.stop()
         self.is_playing = False
