@@ -13,7 +13,7 @@ from app.audio.out_stream import AudioOutput
 from app.config import AppConfig, _load_dotenv, load_config
 from app.memory.session_store import SessionStore
 from app.observability.logger import configure_logging, log_timing
-from app.state_machine import ConversationStateMachine
+from app.state_machine import ConversationStateMachine, State
 from app.tts.fish_adapter import FishTTSAdapter
 
 LOGGER = logging.getLogger("podcast.runtime")
@@ -81,6 +81,67 @@ def _recover_to_listening(app: dict, component: str, exc: Exception) -> None:
     app["state_machine"].on_interrupt()
 
 
+async def _check_for_interrupt(app: dict) -> bool:
+    """Check pending frames for interrupt speech. Returns True if interrupted."""
+    interrupt_threshold_s = app["config"].vad_interrupt_ms / 1000.0
+    consecutive_speech = 0.0
+
+    while app["audio_in"].has_pending_frame():
+        frame = await app["audio_in"].read_frame()
+        if app["audio_in"].is_speech_frame(frame):
+            consecutive_speech += 0.1
+            if consecutive_speech >= interrupt_threshold_s:
+                LOGGER.info(
+                    "interrupt: detected %dms of continuous speech",
+                    int(consecutive_speech * 1000),
+                )
+                return True
+        else:
+            consecutive_speech = 0.0
+
+    return False
+
+
+async def _wait_for_playback_done(app: dict) -> bool:
+    """Wait until audio playback finishes or is interrupted by speech.
+
+    Runs a parallel VAD monitor during playback. When continuous speech
+    exceeds the configured interrupt threshold, stops playback and returns
+    immediately.
+    
+    Returns True if interrupted by speech, False if playback finished naturally.
+    """
+    interrupted_flag = {"value": False}
+    
+    async def _monitor_interrupt() -> None:
+        while True:
+            if app["audio_in"].has_pending_frame():
+                interrupted = await _check_for_interrupt(app)
+                if interrupted:
+                    app["audio_out"].stop()
+                    interrupted_flag["value"] = True
+                    return
+            await asyncio.sleep(0.1)
+
+    monitor_task = asyncio.create_task(_monitor_interrupt())
+    playback_task = asyncio.create_task(app["audio_out"].wait())
+
+    done, pending = await asyncio.wait(
+        [monitor_task, playback_task],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel whichever task is still pending
+    for task in pending:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    return interrupted_flag["value"]
+
+
 async def handle_event(app: dict, event: Event) -> None:
     machine: ConversationStateMachine = app["state_machine"]
 
@@ -121,11 +182,12 @@ async def handle_event(app: dict, event: Event) -> None:
         except Exception as exc:
             _recover_to_listening(app, "tts", exc)
             return
-        if app["audio_in"].has_pending_frame():
-            await app["audio_in"].read_frame()
-            await handle_event(app, Event(type=EventType.INTERRUPT, payload={}))
-            return
-        machine.on_playback_finished()
+
+        interrupted = await _wait_for_playback_done(app)
+        if interrupted:
+            app["state_machine"].on_interrupt()
+        else:
+            machine.on_playback_finished()
         return
 
     if event.type == EventType.INTERRUPT:

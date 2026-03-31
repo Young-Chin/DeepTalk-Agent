@@ -53,14 +53,21 @@ class FailingTTS:
 
 
 class FakeAudioOut:
-    def __init__(self) -> None:
+    def __init__(self, wait_event=None) -> None:
         self.played: list[bytes] = []
         self.stop_calls = 0
         self.is_playing = False
+        self._wait_event = wait_event
 
     async def play(self, audio_bytes: bytes) -> None:
         self.played.append(audio_bytes)
         self.is_playing = True
+
+    async def wait(self) -> None:
+        """Block until playback completes (or test event is set)."""
+        if self._wait_event is not None:
+            await self._wait_event.wait()
+        self.is_playing = False
 
     def stop(self) -> None:
         self.stop_calls += 1
@@ -207,12 +214,29 @@ async def test_pump_microphone_once_skips_non_speech_frames(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agent_reply_is_interrupted_when_new_audio_arrives(monkeypatch):
+    import asyncio as _asyncio
+
     app = _build_test_app(monkeypatch)
     fake_tts = FakeTTS(b"audio")
-    fake_audio = FakeAudioOut()
     app["tts"] = fake_tts
+
+    # Use an event to make FakeAudioOut.wait() block until the monitor
+    # has detected speech and called stop().
+    playback_done = _asyncio.Event()
+    fake_audio = FakeAudioOut(wait_event=playback_done)
     app["audio_out"] = fake_audio
-    app["audio_in"].push_frame(b"interrupting-frame")
+
+    # Pre-fill speech frames in the audio input queue so the VAD monitor
+    # detects speech and triggers an interrupt during playback.
+    for _ in range(20):
+        app["audio_in"].push_frame(b"\x08\x03" * 240)  # high-energy PCM16 samples
+
+    # Ensure the playback event only fires AFTER stop() is called.
+    original_stop = fake_audio.stop
+    def _stop_and_set():
+        original_stop()
+        playback_done.set()
+    fake_audio.stop = _stop_and_set
 
     await handle_event(
         app,
