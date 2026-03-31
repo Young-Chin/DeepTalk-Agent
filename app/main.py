@@ -136,6 +136,27 @@ def _recover_to_listening(app: dict, component: str, exc: Exception) -> None:
     app["state_machine"].on_interrupt()
 
 
+async def _check_for_interrupt(app: dict) -> bool:
+    """Check pending frames for interrupt speech. Returns True if interrupted."""
+    interrupt_threshold_s = app["config"].vad_interrupt_ms / 1000.0
+    consecutive_speech = 0.0
+
+    while app["audio_in"].has_pending_frame():
+        frame = await app["audio_in"].read_frame()
+        if app["audio_in"].is_speech_frame(frame):
+            consecutive_speech += 0.1
+            if consecutive_speech >= interrupt_threshold_s:
+                LOGGER.info(
+                    "interrupt: detected %dms of continuous speech",
+                    int(consecutive_speech * 1000),
+                )
+                return True
+        else:
+            consecutive_speech = 0.0
+
+    return False
+
+
 async def _wait_for_playback_done(app: dict) -> bool:
     """Wait until audio playback finishes or is interrupted by speech.
 

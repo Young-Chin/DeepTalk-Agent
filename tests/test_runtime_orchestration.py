@@ -398,11 +398,11 @@ async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
 
     await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
 
-    assert "ASR backend: qwen" in lines
-    assert "TTS backend: fish" in lines
+    assert "ASR backend: mlx" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "ASR model: http://localhost:8001" in lines
-    assert "TTS model: http://localhost:8002" in lines
+    assert "ASR model: mlx-community/Qwen3-ASR-0.6B-4bit" in lines
+    assert "TTS model: mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit" in lines
     assert "Input device: Fake Microphone" in lines
     assert "Output device: Fake Speaker" in lines
     assert "Playback mode: real" in lines
@@ -457,7 +457,7 @@ async def test_run_text_demo_drives_llm_tts_and_playback(monkeypatch):
 
     assert "Text demo mode" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "TTS backend: fish" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert app["audio_out"].played == [b"audio"]
     assert app["memory"].snapshot()[-1]["content"] == "欢迎来到节目"
 
@@ -474,8 +474,8 @@ async def test_run_audio_demo_drives_asr_llm_tts_and_playback(monkeypatch):
     await run_audio_demo(app, b"pcm-frame", printer=lines.append)
 
     assert "Audio demo mode" in lines
-    assert "ASR backend: qwen" in lines
+    assert "ASR backend: mlx" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "TTS backend: fish" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert app["audio_out"].played == [b"audio"]
     assert app["memory"].snapshot()[0]["content"] == "这是脚本化转写"
