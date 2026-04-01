@@ -26,7 +26,7 @@ class AppConfig:
     audio_sample_rate: int = 16000
     vad_start_ms: int = 120
     vad_interrupt_ms: int = 200
-    turn_silence_ms: int = 600
+    turn_silence_ms: int = 1500
     log_level: str = "INFO"
 
 

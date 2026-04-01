@@ -5,7 +5,11 @@ import io
 import importlib
 import logging
 import os
+import select
+import sys
+import termios
 import time
+import tty
 import wave
 from collections.abc import Callable
 from pathlib import Path
@@ -38,7 +42,7 @@ def _build_mock_config() -> AppConfig:
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
         vad_interrupt_ms=int(os.getenv("VAD_INTERRUPT_MS", "200")),
-        turn_silence_ms=int(os.getenv("TURN_SILENCE_MS", "600")),
+        turn_silence_ms=int(os.getenv("TURN_SILENCE_MS", "1500")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
 
@@ -111,7 +115,7 @@ def build_app() -> dict:
         )
         tts, tts_provider = _build_tts(config, backend)
 
-    return {
+    app_dict = {
         "config": config,
         "bus": bus,
         "state_machine": state_machine,
@@ -129,6 +133,10 @@ def build_app() -> dict:
         "agent": agent,
         "tts": tts,
     }
+
+    _preload_models(app_dict)
+
+    return app_dict
 
 
 def _recover_to_listening(app: dict, component: str, exc: Exception) -> None:
@@ -202,6 +210,25 @@ def _print_turn_latency(turn_started_at: float | None, printer: Callable[[str], 
         return
     elapsed_ms = int(round((time.perf_counter() - turn_started_at) * 1000))
     printer(f"Turn latency: {elapsed_ms} ms")
+
+
+def _preload_models(app: dict, printer=None) -> None:
+    """Warm up lazy-loaded MLX models on startup."""
+    if printer is None:
+        printer = print
+    config = app["config"]
+    if app["asr_provider"] == "mlx":
+        try:
+            app["asr"]._transcriber._model_instance()
+            printer(f"ASR model preloaded: {config.mlx_asr_model}")
+        except Exception as exc:
+            printer(f"Warning: ASR model preload skipped: {exc}")
+    if app["tts_provider"] == "mlx_qwen3":
+        try:
+            app["tts"]._model._model_instance()
+            printer(f"TTS model preloaded: {config.mlx_tts_model}")
+        except Exception as exc:
+            printer(f"Warning: TTS model preload skipped: {exc}")
 
 
 def _describe_asr_model(app: dict) -> str:
@@ -447,6 +474,121 @@ def stop_audio_input(app: dict) -> None:
     app["audio_in"].stop_device_capture()
 
 
+def _frame_energy(frame: bytes) -> float:
+    """Calculate average absolute sample energy (0-32767 scale)."""
+    import struct
+
+    if not frame:
+        return 0.0
+    sample_count = len(frame) // 2
+    if sample_count == 0:
+        return 0.0
+    samples = struct.unpack("<" + "h" * sample_count, frame[: sample_count * 2])
+    return sum(abs(s) for s in samples) / sample_count
+
+
+def _render_volume_meter(frame: bytes) -> None:
+    """Draw a simple volume meter in-place on the terminal."""
+    energy = _frame_energy(frame)
+    bars = int(min(energy / 800, 30))
+    bar_str = ("\u2588" * bars) + ("\u2591" * (30 - bars))
+    sys.stdout.write(f"\rRecording... [{bar_str}] {energy:.0f}  ")
+    sys.stdout.flush()
+
+
+class _TerminalKeyReader:
+    """Non-blocking single-key reader for push-to-talk in terminal."""
+
+    def __init__(self) -> None:
+        self._old_settings: list | None = None
+
+    def __enter__(self) -> "_TerminalKeyReader":
+        if not sys.stdin.isatty():
+            raise RuntimeError("Push-to-talk requires a terminal")
+        self._old_settings = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin.fileno())
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        if self._old_settings is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_settings)
+
+    def wait_for_key(self) -> None:
+        """Block until any key is pressed."""
+        select.select([sys.stdin], [], [])
+        sys.stdin.read(1)
+
+
+async def _run_push_to_talk(app: dict) -> None:
+    """Push-to-talk loop: press any key to start recording, press again to stop."""
+    print("Push-to-talk mode: press any key to toggle recording")
+    key_reader = _TerminalKeyReader()
+
+    with key_reader:
+        while True:
+            print("\n[\u23f8] Press any key to start recording...", end="", flush=True)
+            key_reader.wait_for_key()
+
+            print("\n[\u23fa] Recording... Press any key to stop")
+            start_audio_input(app)
+            print("[", end="", flush=True)
+
+            stop_recording = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def _wait_for_key() -> None:
+                select.select([sys.stdin], [], [])
+                sys.stdin.read(1)
+                loop.call_soon_threadsafe(stop_recording.set)
+
+            key_task = loop.run_in_executor(None, _wait_for_key)
+
+            try:
+                while not stop_recording.is_set():
+                    try:
+                        frame = app["audio_in"]._queue.get_nowait()
+                        _render_volume_meter(frame)
+                    except asyncio.QueueEmpty:
+                        pass
+                    try:
+                        await asyncio.wait_for(stop_recording.wait(), timeout=0.05)
+                    except asyncio.TimeoutError:
+                        continue
+            finally:
+                stop_audio_input(app)
+                stop_recording.set()
+                sys.stdout.write("\r" + " " * 64 + "\r")
+                sys.stdout.flush()
+
+            print("[\u23f9] Stopped. Transcribing...")
+            pending = app["audio_in"].drain_pending_frames()
+            if not pending:
+                print("[No audio captured]")
+                continue
+
+            chunk = b"".join(pending)
+            turn_started_at = time.perf_counter()
+            try:
+                with log_timing(
+                    LOGGER,
+                    component="asr",
+                    operation="transcribe_chunk",
+                    provider=app["asr_provider"],
+                ):
+                    text = await app["asr"].transcribe_chunk(chunk)
+            except Exception as exc:
+                _recover_to_listening(app, "asr", exc)
+                continue
+
+            await app["bus"].publish(
+                Event(
+                    type=EventType.USER_FINAL_TEXT,
+                    payload={"text": text, "turn_started_at": turn_started_at},
+                ),
+            )
+            await consume_next_event(app)
+
+
 async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
@@ -462,6 +604,12 @@ async def run() -> None:
     if audio_demo_path:
         await run_audio_demo(app, _load_demo_audio_bytes(audio_demo_path))
         return
+
+    ptt = os.getenv("PODCAST_PTT", "").strip().lower()
+    if ptt in {"1", "true", "yes", "on"}:
+        await _run_push_to_talk(app)
+        return
+
     try:
         start_audio_input(app)
     except RuntimeError as exc:
