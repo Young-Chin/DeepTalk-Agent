@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 
 import httpx
+
+LOGGER = logging.getLogger("podcast.tts.fish")
 
 
 class FishTTSAdapter:
@@ -11,13 +14,16 @@ class FishTTSAdapter:
         self.base_url = base_url.rstrip("/")
 
     async def synthesize(self, text: str) -> bytes:
+        LOGGER.info("开始 TTS 合成，文本长度：%d 字符", len(text))
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 f"{self.base_url}/synthesize",
                 json={"text": text},
             )
             response.raise_for_status()
-            return self._extract_audio_bytes(response)
+            audio_bytes = self._extract_audio_bytes(response)
+            LOGGER.info("TTS 合成完成，音频大小：%d KB", len(audio_bytes) // 1024)
+            return audio_bytes
 
     def _extract_audio_bytes(self, response: httpx.Response) -> bytes:
         content_type = response.headers.get("Content-Type", "").lower()

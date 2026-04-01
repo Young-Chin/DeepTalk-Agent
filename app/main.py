@@ -35,10 +35,15 @@ def _build_mock_config() -> AppConfig:
         gemini_api_key="mock",
         llm_base_url="mock://llm",
         llm_model="mock-llm",
+        llm_system_prompt=None,
         qwen_asr_base_url="mock://asr",
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
         tts_backend="mock",
+        mlx_tts_model_type="vibevoice",
+        mlx_tts_vibevoice_model="mlx-community/VibeVoice-Realtime-0.5B-4bit",
+        mlx_tts_kokoro_model="mlx-community/Kokoro-82M-4bit",
+        mlx_tts_qwen3_model="mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
         vad_interrupt_ms=int(os.getenv("VAD_INTERRUPT_MS", "200")),
@@ -71,11 +76,20 @@ def _build_tts(config: AppConfig, backend: str):
 
         return MockTTSAdapter(sample_rate=config.audio_sample_rate), "mock"
     if config.tts_backend == "mlx_qwen3":
+        # 根据配置选择 TTS 模型
+        model_map = {
+            "vibevoice": config.mlx_tts_vibevoice_model,
+            "kokoro": config.mlx_tts_kokoro_model,
+            "qwen3": config.mlx_tts_qwen3_model,
+        }
+        selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_vibevoice_model)
+        LOGGER.info("使用 TTS 模型：%s (%s)", config.mlx_tts_model_type, selected_model.split('/')[-1])
         return (
             MLXQwenTTSAdapter(
-                model=config.mlx_tts_model,
+                model=selected_model,
                 lang_code=config.mlx_tts_language,
                 voice=config.mlx_tts_voice,
+                speed=config.mlx_tts_speed,
             ),
             "mlx_qwen3",
         )
@@ -112,6 +126,7 @@ def build_app() -> dict:
             config.gemini_api_key,
             model=config.llm_model,
             base_url=config.llm_base_url,
+            system_prompt=config.llm_system_prompt,
         )
         tts, tts_provider = _build_tts(config, backend)
 
@@ -277,11 +292,19 @@ async def handle_event(app: dict, event: Event) -> None:
         except Exception as exc:
             _recover_to_listening(app, "llm", exc)
             return
+        
+        # 记录 LLM 回复完成时间点
+        llm_done_at = time.perf_counter()
+        LOGGER.info(
+            "LLM 回复完成，准备 TTS 合成",
+            extra={"latency_ms": int((llm_done_at - turn_started_at) * 1000) if turn_started_at else 0},
+        )
+        
         await handle_event(
             app,
             Event(
                 type=EventType.AGENT_TEXT_READY,
-                payload={"text": reply, "turn_started_at": turn_started_at},
+                payload={"text": reply, "turn_started_at": turn_started_at, "llm_done_at": llm_done_at},
             ),
         )
         return
@@ -289,16 +312,41 @@ async def handle_event(app: dict, event: Event) -> None:
     if event.type == EventType.AGENT_TEXT_READY:
         text = event.payload["text"]
         turn_started_at = event.payload.get("turn_started_at")
+        llm_done_at = event.payload.get("llm_done_at")
         print(f"Host: {text}")
+        
+        # 测量打印到 TTS 合成的延迟
+        print_after = time.perf_counter()
+        if llm_done_at:
+            print_to_tts_start_ms = int((print_after - llm_done_at) * 1000)
+            LOGGER.info(f"打印后等待 TTS 合成：{print_to_tts_start_ms}ms")
+        
         machine.on_agent_reply_ready(text)
         try:
+            tts_start = time.perf_counter()
+            
+            # 优化：TTS 合成和播放准备并行执行
+            # 创建 TTS 合成任务
+            tts_task = asyncio.create_task(app["tts"].synthesize(text))
+            
+            # 等待 TTS 完成
             with log_timing(
                 LOGGER,
                 component="tts",
                 operation="synthesize",
                 provider=app["tts_provider"],
             ):
-                audio_bytes = await app["tts"].synthesize(text)
+                audio_bytes = await tts_task
+            
+            tts_end = time.perf_counter()
+            tts_duration_ms = int((tts_end - tts_start) * 1000)
+            LOGGER.info(f"TTS 合成总耗时：{tts_duration_ms}ms")
+            
+            # 测量 TTS 合成后到播放开始的延迟
+            play_start = time.perf_counter()
+            tts_to_play_ms = int((play_start - tts_end) * 1000)
+            LOGGER.info(f"TTS 合成完成到播放开始：{tts_to_play_ms}ms")
+            
             await app["audio_out"].play(audio_bytes)
         except Exception as exc:
             _recover_to_listening(app, "tts", exc)
