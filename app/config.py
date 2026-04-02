@@ -17,12 +17,12 @@ class AppConfig:
     llm_base_url: str = "https://model-api.skyengine.com.cn/v1/chat/completions"
     llm_model: str = "qwen3.5-flash"
     llm_system_prompt: str | None = None  # 可选的自定义 system prompt
-    asr_backend: str = "qwen"
+    asr_backend: str = "mlx"
     mlx_asr_model: str = "mlx-community/Qwen3-ASR-0.6B-4bit"
     mlx_asr_language: str = "zh"
-    tts_backend: str = "fish"
+    tts_backend: str = "mlx_qwen3"
     # TTS 模型选择：vibevoice / kokoro / qwen3
-    mlx_tts_model_type: str = "vibevoice"  
+    mlx_tts_model_type: str = "qwen3"
     mlx_tts_vibevoice_model: str = "mlx-community/VibeVoice-Realtime-0.5B-4bit"
     mlx_tts_kokoro_model: str = "mlx-community/Kokoro-82M-4bit"
     mlx_tts_qwen3_model: str = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
@@ -86,8 +86,8 @@ def _load_dotenv(path: str = ".env") -> None:
 
 
 def load_config() -> AppConfig:
-    asr_backend = os.getenv("ASR_BACKEND", "qwen").strip().lower() or "qwen"
-    tts_backend = os.getenv("TTS_BACKEND", "fish").strip().lower() or "fish"
+    asr_backend = os.getenv("ASR_BACKEND", "mlx").strip().lower() or "mlx"
+    tts_backend = os.getenv("TTS_BACKEND", "mlx_qwen3").strip().lower() or "mlx_qwen3"
     qwen_asr_base_url = _optional("QWEN_ASR_BASE_URL")
     fish_tts_base_url = _optional("FISH_TTS_BASE_URL")
     if asr_backend == "qwen" and qwen_asr_base_url is None:
@@ -96,9 +96,9 @@ def load_config() -> AppConfig:
         raise ConfigError("Missing required env: FISH_TTS_BASE_URL")
     
     # TTS 模型类型选择
-    mlx_tts_model_type = os.getenv("MLX_TTS_MODEL_TYPE", "vibevoice").strip().lower()
+    mlx_tts_model_type = os.getenv("MLX_TTS_MODEL_TYPE", "qwen3").strip().lower()
     if mlx_tts_model_type not in {"vibevoice", "kokoro", "qwen3"}:
-        mlx_tts_model_type = "vibevoice"
+        mlx_tts_model_type = "qwen3"
     
     return AppConfig(
         gemini_api_key=_require_ascii("GEMINI_API_KEY", _required("GEMINI_API_KEY")),

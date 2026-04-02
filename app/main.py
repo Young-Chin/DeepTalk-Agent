@@ -40,7 +40,7 @@ def _build_mock_config() -> AppConfig:
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
         tts_backend="mock",
-        mlx_tts_model_type="vibevoice",
+        mlx_tts_model_type="qwen3",
         mlx_tts_vibevoice_model="mlx-community/VibeVoice-Realtime-0.5B-4bit",
         mlx_tts_kokoro_model="mlx-community/Kokoro-82M-4bit",
         mlx_tts_qwen3_model="mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
@@ -241,7 +241,13 @@ def _preload_models(app: dict, printer=None) -> None:
     if app["tts_provider"] == "mlx_qwen3":
         try:
             app["tts"]._model._model_instance()
-            printer(f"TTS model preloaded: {config.mlx_tts_model}")
+            model_map = {
+                "vibevoice": config.mlx_tts_vibevoice_model,
+                "kokoro": config.mlx_tts_kokoro_model,
+                "qwen3": config.mlx_tts_qwen3_model,
+            }
+            selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_qwen3_model)
+            printer(f"TTS model preloaded: {selected_model}")
         except Exception as exc:
             printer(f"Warning: TTS model preload skipped: {exc}")
 
@@ -258,7 +264,12 @@ def _describe_asr_model(app: dict) -> str:
 def _describe_tts_model(app: dict) -> str:
     config: AppConfig = app["config"]
     if app["tts_provider"] == "mlx_qwen3":
-        return config.mlx_tts_model
+        model_map = {
+            "vibevoice": config.mlx_tts_vibevoice_model,
+            "kokoro": config.mlx_tts_kokoro_model,
+            "qwen3": config.mlx_tts_qwen3_model,
+        }
+        return model_map.get(config.mlx_tts_model_type, config.mlx_tts_qwen3_model)
     if app["tts_provider"] == "mock":
         return "mock"
     return config.fish_tts_base_url or "unconfigured"
@@ -578,6 +589,7 @@ async def _run_push_to_talk(app: dict) -> None:
             key_reader.wait_for_key()
 
             print("\n[\u23fa] Recording... Press any key to stop")
+            app["audio_in"].drain_pending_frames()
             start_audio_input(app)
             print("[", end="", flush=True)
 
@@ -595,6 +607,7 @@ async def _run_push_to_talk(app: dict) -> None:
                 while not stop_recording.is_set():
                     try:
                         frame = app["audio_in"]._queue.get_nowait()
+                        app["audio_in"].push_frame(frame)
                         _render_volume_meter(frame)
                     except asyncio.QueueEmpty:
                         pass
