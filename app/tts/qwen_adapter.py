@@ -100,13 +100,13 @@ class MLXQwenTTSAdapter:
             LOGGER.debug("使用 Kokoro 模式")
         elif is_vibevoice:
             # VibeVoice 特定参数
+            # 注意: VibeVoice 不支持 lang_code 参数，语言由输入文本自动检测
             kwargs.update({
-                "lang_code": self.lang_code,
                 "speed": self.speed,
             })
             if self.voice:
                 kwargs["voice"] = self.voice
-            LOGGER.debug("使用 VibeVoice 模式")
+            LOGGER.debug("使用 VibeVoice 模式（语言由文本自动检测）")
         else:
             # Qwen3 TTS 默认参数
             kwargs.update({
