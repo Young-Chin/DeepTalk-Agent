@@ -29,7 +29,7 @@ class AudioOutput:
         if self._sounddevice is _AUTO:
             try:
                 self._sounddevice = importlib.import_module("sounddevice")
-            except ModuleNotFoundError:
+            except (ModuleNotFoundError, OSError):
                 self._sounddevice = None
         return self._sounddevice
 

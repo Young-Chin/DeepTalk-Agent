@@ -41,7 +41,7 @@ class _MLXTranscriber:
 class MLXASRAdapter:
     def __init__(
         self,
-        model: str = "mlx-community/Qwen3-ASR-0.6B-4bit",
+        model: str = "modelscope/Qwen3-ASR-0.6B-4bit",
         *,
         language: str | None = "zh",
         transcriber=None,

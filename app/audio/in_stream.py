@@ -44,7 +44,7 @@ class MicrophoneInput:
         if self._sounddevice is _AUTO:
             try:
                 self._sounddevice = importlib.import_module("sounddevice")
-            except ModuleNotFoundError as exc:
+            except (ModuleNotFoundError, OSError) as exc:
                 raise RuntimeError(
                     "sounddevice is required for real microphone capture"
                 ) from exc

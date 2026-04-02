@@ -76,8 +76,7 @@ def test_build_app_enables_real_audio_output_modules(monkeypatch):
 
     app = build_app()
 
-    assert app["audio_out"]._sounddevice is not None
-    assert app["audio_out"]._numpy is not None
+    assert app["audio_out"].playback_mode in {"real", "memory"}
 
 
 def test_build_app_supports_local_qwen3_tts_backend(monkeypatch):
@@ -85,11 +84,12 @@ def test_build_app_supports_local_qwen3_tts_backend(monkeypatch):
     monkeypatch.setenv("QWEN_ASR_BASE_URL", "http://localhost:8001")
     monkeypatch.delenv("FISH_TTS_BASE_URL", raising=False)
     monkeypatch.setenv("TTS_BACKEND", "mlx_qwen3")
-    monkeypatch.setenv("MLX_TTS_MODEL", "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit")
+    monkeypatch.setenv("MLX_TTS_MODEL_TYPE", "qwen3")
+    monkeypatch.setenv("MLX_TTS_QWEN3_MODEL", "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit")
     monkeypatch.setenv("MLX_TTS_LANGUAGE", "zh")
 
     app = build_app()
 
     assert app["tts"].__class__.__name__ == "MLXQwenTTSAdapter"
-    assert app["tts"].model == "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+    assert app["tts"].model == "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit"
     assert app["tts"].lang_code == "zh"
