@@ -3,3 +3,12 @@ __pycache__/
 .pytest_cache/
 .env
 .venv/
+
+# 辅助性文档和调试文件
+*.md
+!README.md
+!.gitignore
+logs/
+.kokoro/
+*.wav
+
