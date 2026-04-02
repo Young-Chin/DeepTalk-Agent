@@ -20,7 +20,7 @@ class MicrophoneInput:
         channels: int = 1,
         dtype: str = "int16",
         vad=_AUTO,
-        energy_threshold: int = 250,
+        energy_threshold: int = 500,
         sounddevice_module=_AUTO,
     ) -> None:
         self._queue: asyncio.Queue[bytes] = asyncio.Queue()
@@ -59,7 +59,7 @@ class MicrophoneInput:
             except ModuleNotFoundError:
                 self._vad = None
                 return None
-            self._vad = webrtcvad.Vad(2)
+            self._vad = webrtcvad.Vad(0)
         if self._vad is not None:
             return self._vad
         return None

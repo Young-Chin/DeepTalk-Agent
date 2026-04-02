@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import importlib
 import wave
@@ -79,6 +80,14 @@ class AudioOutput:
         sounddevice.play(samples, sample_rate)
         self.playback_invoked = bool(audio_bytes)
         self.is_playing = bool(audio_bytes)
+
+    async def wait(self) -> None:
+        """Wait for playback to complete (blocking)."""
+        sounddevice = self._resolve_sounddevice()
+        # sounddevice.wait() is a blocking call; run it in executor
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, sounddevice.wait)
+        self.is_playing = False
 
     def stop(self) -> None:
         sounddevice = self._resolve_sounddevice()

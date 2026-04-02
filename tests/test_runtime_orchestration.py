@@ -58,10 +58,11 @@ class FailingTTS:
 
 
 class FakeAudioOut:
-    def __init__(self) -> None:
+    def __init__(self, wait_event=None) -> None:
         self.played: list[bytes] = []
         self.stop_calls = 0
         self.is_playing = False
+        self._wait_event = wait_event
         self.last_played: bytes | None = None
         self.playback_mode = "real"
         self.playback_invoked = False
@@ -71,6 +72,12 @@ class FakeAudioOut:
         self.is_playing = True
         self.last_played = audio_bytes
         self.playback_invoked = True
+
+    async def wait(self) -> None:
+        """Block until playback completes (or test event is set)."""
+        if self._wait_event is not None:
+            await self._wait_event.wait()
+        self.is_playing = False
 
     def stop(self) -> None:
         self.stop_calls += 1
@@ -234,12 +241,29 @@ async def test_pump_microphone_once_skips_non_speech_frames(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_agent_reply_is_interrupted_when_new_audio_arrives(monkeypatch):
+    import asyncio as _asyncio
+
     app = _build_test_app(monkeypatch)
     fake_tts = FakeTTS(b"audio")
-    fake_audio = FakeAudioOut()
     app["tts"] = fake_tts
+
+    # Use an event to make FakeAudioOut.wait() block until the monitor
+    # has detected speech and called stop().
+    playback_done = _asyncio.Event()
+    fake_audio = FakeAudioOut(wait_event=playback_done)
     app["audio_out"] = fake_audio
-    app["audio_in"].push_frame(b"interrupting-frame")
+
+    # Pre-fill speech frames in the audio input queue so the VAD monitor
+    # detects speech and triggers an interrupt during playback.
+    for _ in range(20):
+        app["audio_in"].push_frame(b"\x08\x03" * 240)  # high-energy PCM16 samples
+
+    # Ensure the playback event only fires AFTER stop() is called.
+    original_stop = fake_audio.stop
+    def _stop_and_set():
+        original_stop()
+        playback_done.set()
+    fake_audio.stop = _stop_and_set
 
     await handle_event(
         app,
@@ -374,11 +398,11 @@ async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
 
     await run_self_test(app, printer=lines.append, speech_timeout_s=0.01)
 
-    assert "ASR backend: qwen" in lines
-    assert "TTS backend: fish" in lines
+    assert "ASR backend: mlx" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "ASR model: http://localhost:8001" in lines
-    assert "TTS model: http://localhost:8002" in lines
+    assert "ASR model: mlx-community/Qwen3-ASR-0.6B-4bit" in lines
+    assert "TTS model: mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit" in lines
     assert "Input device: Fake Microphone" in lines
     assert "Output device: Fake Speaker" in lines
     assert "Playback mode: real" in lines
@@ -433,7 +457,7 @@ async def test_run_text_demo_drives_llm_tts_and_playback(monkeypatch):
 
     assert "Text demo mode" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "TTS backend: fish" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert app["audio_out"].played == [b"audio"]
     assert app["memory"].snapshot()[-1]["content"] == "欢迎来到节目"
 
@@ -450,8 +474,8 @@ async def test_run_audio_demo_drives_asr_llm_tts_and_playback(monkeypatch):
     await run_audio_demo(app, b"pcm-frame", printer=lines.append)
 
     assert "Audio demo mode" in lines
-    assert "ASR backend: qwen" in lines
+    assert "ASR backend: mlx" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "TTS backend: fish" in lines
+    assert "TTS backend: mlx_qwen3" in lines
     assert app["audio_out"].played == [b"audio"]
     assert app["memory"].snapshot()[0]["content"] == "这是脚本化转写"

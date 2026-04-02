@@ -5,7 +5,11 @@ import io
 import importlib
 import logging
 import os
+import select
+import sys
+import termios
 import time
+import tty
 import wave
 from collections.abc import Callable
 from pathlib import Path
@@ -19,7 +23,7 @@ from app.audio.out_stream import AudioOutput
 from app.config import AppConfig, _load_dotenv, load_config
 from app.memory.session_store import SessionStore
 from app.observability.logger import configure_logging, log_timing
-from app.state_machine import ConversationStateMachine
+from app.state_machine import ConversationStateMachine, State
 from app.tts.fish_adapter import FishTTSAdapter
 from app.tts.qwen_adapter import MLXQwenTTSAdapter
 
@@ -31,14 +35,19 @@ def _build_mock_config() -> AppConfig:
         gemini_api_key="mock",
         llm_base_url="mock://llm",
         llm_model="mock-llm",
+        llm_system_prompt=None,
         qwen_asr_base_url="mock://asr",
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
         tts_backend="mock",
+        mlx_tts_model_type="vibevoice",
+        mlx_tts_vibevoice_model="mlx-community/VibeVoice-Realtime-0.5B-4bit",
+        mlx_tts_kokoro_model="mlx-community/Kokoro-82M-4bit",
+        mlx_tts_qwen3_model="mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
         vad_interrupt_ms=int(os.getenv("VAD_INTERRUPT_MS", "200")),
-        turn_silence_ms=int(os.getenv("TURN_SILENCE_MS", "600")),
+        turn_silence_ms=int(os.getenv("TURN_SILENCE_MS", "1500")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
 
@@ -67,11 +76,20 @@ def _build_tts(config: AppConfig, backend: str):
 
         return MockTTSAdapter(sample_rate=config.audio_sample_rate), "mock"
     if config.tts_backend == "mlx_qwen3":
+        # 根据配置选择 TTS 模型
+        model_map = {
+            "vibevoice": config.mlx_tts_vibevoice_model,
+            "kokoro": config.mlx_tts_kokoro_model,
+            "qwen3": config.mlx_tts_qwen3_model,
+        }
+        selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_vibevoice_model)
+        LOGGER.info("使用 TTS 模型：%s (%s)", config.mlx_tts_model_type, selected_model.split('/')[-1])
         return (
             MLXQwenTTSAdapter(
-                model=config.mlx_tts_model,
+                model=selected_model,
                 lang_code=config.mlx_tts_language,
                 voice=config.mlx_tts_voice,
+                speed=config.mlx_tts_speed,
             ),
             "mlx_qwen3",
         )
@@ -108,10 +126,11 @@ def build_app() -> dict:
             config.gemini_api_key,
             model=config.llm_model,
             base_url=config.llm_base_url,
+            system_prompt=config.llm_system_prompt,
         )
         tts, tts_provider = _build_tts(config, backend)
 
-    return {
+    app_dict = {
         "config": config,
         "bus": bus,
         "state_machine": state_machine,
@@ -130,10 +149,75 @@ def build_app() -> dict:
         "tts": tts,
     }
 
+    _preload_models(app_dict)
+
+    return app_dict
+
 
 def _recover_to_listening(app: dict, component: str, exc: Exception) -> None:
     LOGGER.exception("%s failure; recovering to listening: %s", component, exc)
     app["state_machine"].on_interrupt()
+
+
+async def _check_for_interrupt(app: dict) -> bool:
+    """Check pending frames for interrupt speech. Returns True if interrupted."""
+    interrupt_threshold_s = app["config"].vad_interrupt_ms / 1000.0
+    consecutive_speech = 0.0
+
+    while app["audio_in"].has_pending_frame():
+        frame = await app["audio_in"].read_frame()
+        if app["audio_in"].is_speech_frame(frame):
+            consecutive_speech += 0.1
+            if consecutive_speech >= interrupt_threshold_s:
+                LOGGER.info(
+                    "interrupt: detected %dms of continuous speech",
+                    int(consecutive_speech * 1000),
+                )
+                return True
+        else:
+            consecutive_speech = 0.0
+
+    return False
+
+
+async def _wait_for_playback_done(app: dict) -> bool:
+    """Wait until audio playback finishes or is interrupted by speech.
+
+    Runs a parallel VAD monitor during playback. When continuous speech
+    exceeds the configured interrupt threshold, stops playback and returns
+    immediately.
+    
+    Returns True if interrupted by speech, False if playback finished naturally.
+    """
+    interrupted_flag = {"value": False}
+    
+    async def _monitor_interrupt() -> None:
+        while True:
+            if app["audio_in"].has_pending_frame():
+                interrupted = await _check_for_interrupt(app)
+                if interrupted:
+                    app["audio_out"].stop()
+                    interrupted_flag["value"] = True
+                    return
+            await asyncio.sleep(0.1)
+
+    monitor_task = asyncio.create_task(_monitor_interrupt())
+    playback_task = asyncio.create_task(app["audio_out"].wait())
+
+    done, pending = await asyncio.wait(
+        [monitor_task, playback_task],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    # Cancel whichever task is still pending
+    for task in pending:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    return interrupted_flag["value"]
 
 
 def _print_turn_latency(turn_started_at: float | None, printer: Callable[[str], None] = print) -> None:
@@ -141,6 +225,25 @@ def _print_turn_latency(turn_started_at: float | None, printer: Callable[[str], 
         return
     elapsed_ms = int(round((time.perf_counter() - turn_started_at) * 1000))
     printer(f"Turn latency: {elapsed_ms} ms")
+
+
+def _preload_models(app: dict, printer=None) -> None:
+    """Warm up lazy-loaded MLX models on startup."""
+    if printer is None:
+        printer = print
+    config = app["config"]
+    if app["asr_provider"] == "mlx":
+        try:
+            app["asr"]._transcriber._model_instance()
+            printer(f"ASR model preloaded: {config.mlx_asr_model}")
+        except Exception as exc:
+            printer(f"Warning: ASR model preload skipped: {exc}")
+    if app["tts_provider"] == "mlx_qwen3":
+        try:
+            app["tts"]._model._model_instance()
+            printer(f"TTS model preloaded: {config.mlx_tts_model}")
+        except Exception as exc:
+            printer(f"Warning: TTS model preload skipped: {exc}")
 
 
 def _describe_asr_model(app: dict) -> str:
@@ -189,11 +292,19 @@ async def handle_event(app: dict, event: Event) -> None:
         except Exception as exc:
             _recover_to_listening(app, "llm", exc)
             return
+        
+        # 记录 LLM 回复完成时间点
+        llm_done_at = time.perf_counter()
+        LOGGER.info(
+            "LLM 回复完成，准备 TTS 合成",
+            extra={"latency_ms": int((llm_done_at - turn_started_at) * 1000) if turn_started_at else 0},
+        )
+        
         await handle_event(
             app,
             Event(
                 type=EventType.AGENT_TEXT_READY,
-                payload={"text": reply, "turn_started_at": turn_started_at},
+                payload={"text": reply, "turn_started_at": turn_started_at, "llm_done_at": llm_done_at},
             ),
         )
         return
@@ -201,27 +312,53 @@ async def handle_event(app: dict, event: Event) -> None:
     if event.type == EventType.AGENT_TEXT_READY:
         text = event.payload["text"]
         turn_started_at = event.payload.get("turn_started_at")
+        llm_done_at = event.payload.get("llm_done_at")
         print(f"Host: {text}")
+        
+        # 测量打印到 TTS 合成的延迟
+        print_after = time.perf_counter()
+        if llm_done_at:
+            print_to_tts_start_ms = int((print_after - llm_done_at) * 1000)
+            LOGGER.info(f"打印后等待 TTS 合成：{print_to_tts_start_ms}ms")
+        
         machine.on_agent_reply_ready(text)
         try:
+            tts_start = time.perf_counter()
+            
+            # 优化：TTS 合成和播放准备并行执行
+            # 创建 TTS 合成任务
+            tts_task = asyncio.create_task(app["tts"].synthesize(text))
+            
+            # 等待 TTS 完成
             with log_timing(
                 LOGGER,
                 component="tts",
                 operation="synthesize",
                 provider=app["tts_provider"],
             ):
-                audio_bytes = await app["tts"].synthesize(text)
+                audio_bytes = await tts_task
+            
+            tts_end = time.perf_counter()
+            tts_duration_ms = int((tts_end - tts_start) * 1000)
+            LOGGER.info(f"TTS 合成总耗时：{tts_duration_ms}ms")
+            
+            # 测量 TTS 合成后到播放开始的延迟
+            play_start = time.perf_counter()
+            tts_to_play_ms = int((play_start - tts_end) * 1000)
+            LOGGER.info(f"TTS 合成完成到播放开始：{tts_to_play_ms}ms")
+            
             await app["audio_out"].play(audio_bytes)
         except Exception as exc:
             _recover_to_listening(app, "tts", exc)
             return
-        if app["audio_in"].has_pending_frame():
-            await app["audio_in"].read_frame()
-            await handle_event(app, Event(type=EventType.INTERRUPT, payload={}))
+
+        interrupted = await _wait_for_playback_done(app)
+        if interrupted:
+            app["state_machine"].on_interrupt()
             _print_turn_latency(turn_started_at)
-            return
-        machine.on_playback_finished()
-        _print_turn_latency(turn_started_at)
+        else:
+            machine.on_playback_finished()
+            _print_turn_latency(turn_started_at)
         return
 
     if event.type == EventType.INTERRUPT:
@@ -385,6 +522,121 @@ def stop_audio_input(app: dict) -> None:
     app["audio_in"].stop_device_capture()
 
 
+def _frame_energy(frame: bytes) -> float:
+    """Calculate average absolute sample energy (0-32767 scale)."""
+    import struct
+
+    if not frame:
+        return 0.0
+    sample_count = len(frame) // 2
+    if sample_count == 0:
+        return 0.0
+    samples = struct.unpack("<" + "h" * sample_count, frame[: sample_count * 2])
+    return sum(abs(s) for s in samples) / sample_count
+
+
+def _render_volume_meter(frame: bytes) -> None:
+    """Draw a simple volume meter in-place on the terminal."""
+    energy = _frame_energy(frame)
+    bars = int(min(energy / 800, 30))
+    bar_str = ("\u2588" * bars) + ("\u2591" * (30 - bars))
+    sys.stdout.write(f"\rRecording... [{bar_str}] {energy:.0f}  ")
+    sys.stdout.flush()
+
+
+class _TerminalKeyReader:
+    """Non-blocking single-key reader for push-to-talk in terminal."""
+
+    def __init__(self) -> None:
+        self._old_settings: list | None = None
+
+    def __enter__(self) -> "_TerminalKeyReader":
+        if not sys.stdin.isatty():
+            raise RuntimeError("Push-to-talk requires a terminal")
+        self._old_settings = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin.fileno())
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        if self._old_settings is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_settings)
+
+    def wait_for_key(self) -> None:
+        """Block until any key is pressed."""
+        select.select([sys.stdin], [], [])
+        sys.stdin.read(1)
+
+
+async def _run_push_to_talk(app: dict) -> None:
+    """Push-to-talk loop: press any key to start recording, press again to stop."""
+    print("Push-to-talk mode: press any key to toggle recording")
+    key_reader = _TerminalKeyReader()
+
+    with key_reader:
+        while True:
+            print("\n[\u23f8] Press any key to start recording...", end="", flush=True)
+            key_reader.wait_for_key()
+
+            print("\n[\u23fa] Recording... Press any key to stop")
+            start_audio_input(app)
+            print("[", end="", flush=True)
+
+            stop_recording = asyncio.Event()
+            loop = asyncio.get_running_loop()
+
+            def _wait_for_key() -> None:
+                select.select([sys.stdin], [], [])
+                sys.stdin.read(1)
+                loop.call_soon_threadsafe(stop_recording.set)
+
+            key_task = loop.run_in_executor(None, _wait_for_key)
+
+            try:
+                while not stop_recording.is_set():
+                    try:
+                        frame = app["audio_in"]._queue.get_nowait()
+                        _render_volume_meter(frame)
+                    except asyncio.QueueEmpty:
+                        pass
+                    try:
+                        await asyncio.wait_for(stop_recording.wait(), timeout=0.05)
+                    except asyncio.TimeoutError:
+                        continue
+            finally:
+                stop_audio_input(app)
+                stop_recording.set()
+                sys.stdout.write("\r" + " " * 64 + "\r")
+                sys.stdout.flush()
+
+            print("[\u23f9] Stopped. Transcribing...")
+            pending = app["audio_in"].drain_pending_frames()
+            if not pending:
+                print("[No audio captured]")
+                continue
+
+            chunk = b"".join(pending)
+            turn_started_at = time.perf_counter()
+            try:
+                with log_timing(
+                    LOGGER,
+                    component="asr",
+                    operation="transcribe_chunk",
+                    provider=app["asr_provider"],
+                ):
+                    text = await app["asr"].transcribe_chunk(chunk)
+            except Exception as exc:
+                _recover_to_listening(app, "asr", exc)
+                continue
+
+            await app["bus"].publish(
+                Event(
+                    type=EventType.USER_FINAL_TEXT,
+                    payload={"text": text, "turn_started_at": turn_started_at},
+                ),
+            )
+            await consume_next_event(app)
+
+
 async def run() -> None:
     app = build_app()
     configure_logging(app["config"].log_level)
@@ -400,6 +652,12 @@ async def run() -> None:
     if audio_demo_path:
         await run_audio_demo(app, _load_demo_audio_bytes(audio_demo_path))
         return
+
+    ptt = os.getenv("PODCAST_PTT", "").strip().lower()
+    if ptt in {"1", "true", "yes", "on"}:
+        await _run_push_to_talk(app)
+        return
+
     try:
         start_audio_input(app)
     except RuntimeError as exc:
