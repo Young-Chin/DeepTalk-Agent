@@ -3,12 +3,19 @@ __pycache__/
 .pytest_cache/
 .env
 .venv/
+.DS_Store
+app/.DS_Store
 
 # 辅助性文档和调试文件
 *.md
 !README.md
-!.gitignore
+
+# 日志、缓存、音频和调试文件
 logs/
 .kokoro/
 *.wav
+tests/output/
+*.py~
+fix_*.py
+docs/
 
