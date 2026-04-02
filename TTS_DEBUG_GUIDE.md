@@ -75,31 +75,25 @@ python3 -m app.tests.test_tts_models --model-type qwen3 \
 
 ### VibeVoice 语言问题
 
-**症状**: 输出音频是外语或听不懂的语言
+**症状**: 输出音频是外语或听不懂的语言（即使输入是中文）
 
-**原因**: 语言代码传递错误或模型配置不当
+**原因**: VibeVoice 模型对多语言的支持有限制，自动语言检测不准确。模型可能倾向于识别为其他语言。
+
+**当前状态**: 
+- ✓ 模型加载成功
+- ✓ 音频合成成功  
+- ✗ 中文语言识别不正确
 
 **解决方案**:
-1. 检查语言配置：
-   ```bash
-   export MLX_TTS_LANGUAGE=zh  # 确保设置为中文
-   ```
+使用 Qwen3-TTS 替代（已验证支持中文）：
+```bash
+export MLX_TTS_MODEL_TYPE=qwen3  # 改为 Qwen3（推荐）
+```
 
-2. 验证模型参数（查看详细日志）:
-   ```bash
-   export LOG_LEVEL=DEBUG
-   python3 -m app.main
-   grep "TTS 生成参数" logs/run.log
-   ```
-
-3. 如果问题依然存在，尝试重置模型:
-   ```bash
-   # 清除缓存
-   rm -rf ~/.cache/modelscope/hub/modelscope--VibeVoice*
-   
-   # 重新测试
-   python3 -m app.tests.test_tts_models --model-type vibevoice --verbose
-   ```
+**备选方案**（如必须用 VibeVoice）:
+1. 尝试添加语言提示前缀（如果模型支持）
+2. 使用不同的 voice token
+3. 等待模型更新
 
 ## 调试流程
 
