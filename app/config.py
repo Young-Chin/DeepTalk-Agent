@@ -18,14 +18,14 @@ class AppConfig:
     llm_model: str = "qwen3.5-flash"
     llm_system_prompt: str | None = None  # 可选的自定义 system prompt
     asr_backend: str = "mlx"
-    mlx_asr_model: str = "modelscope/Qwen3-ASR-0.6B-4bit"
+    mlx_asr_model: str = "mlx-community/Qwen3-ASR-0.6B-4bit"
     mlx_asr_language: str = "zh"
     tts_backend: str = "mlx_qwen3"
     # TTS 模型选择：vibevoice / kokoro / qwen3
-    mlx_tts_model_type: str = "qwen3"
-    mlx_tts_vibevoice_model: str = "modelscope/VibeVoice-Realtime-0.5B-4bit"
-    mlx_tts_kokoro_model: str = "modelscope/Kokoro-82M-4bit"
-    mlx_tts_qwen3_model: str = "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+    mlx_tts_model_type: str = "vibevoice"
+    mlx_tts_vibevoice_model: str = "mlx-community/VibeVoice-Realtime-0.5B-4bit"
+    mlx_tts_kokoro_model: str = "mlx-community/Kokoro-82M-4bit"
+    mlx_tts_qwen3_model: str = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
     mlx_tts_language: str = "zh"
     mlx_tts_voice: str | None = None
     mlx_tts_speed: float = 1.0  # TTS 语速控制

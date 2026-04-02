@@ -32,6 +32,17 @@ LLM_BASE_URL=https://model-api.skyengine.com.cn/v1/chat/completions
 LLM_MODEL=qwen3.5-flash
 ```
 
+**国内用户加速**：如果下载模型速度慢，在 `.env` 中添加：
+```bash
+HF_ENDPOINT=https://hf-mirror.com
+```
+
+或者运行时设置环境变量：
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+python3 -m app.main
+```
+
 ### 3) 先跑自检
 
 ```bash
@@ -84,6 +95,35 @@ MLX_TTS_MODEL_TYPE=qwen3
 - `MLX_TTS_LANGUAGE=zh`
 - `MLX_TTS_VOICE=`（可留空）
 - `MLX_TTS_SPEED=1.0`
+
+---
+
+## 模型下载（首次运行必读）
+
+程序会在首次运行时自动下载所需模型。
+
+**国内用户加速**：强烈建议配置 HF-Mirror，详见 [HF_MIRROR_SETUP.md](HF_MIRROR_SETUP.md)
+
+```bash
+# 方法 1: 在 .env 中设置
+echo "HF_ENDPOINT=https://hf-mirror.com" >> .env
+
+# 方法 2: 运行时设置
+export HF_ENDPOINT=https://hf-mirror.com
+python3 -m app.main
+```
+
+**模型缓存位置**: `~/.cache/huggingface/hub/`  
+**清除缓存**: `rm -rf ~/.cache/huggingface/hub/models--mlx-community--*`
+
+### 模型大小参考
+
+- Qwen3-ASR: ~500MB
+- VibeVoice-Realtime: ~700MB
+- Kokoro-82M: ~200MB
+- Qwen3-TTS: ~800MB
+
+首次启动会较慢（取决于网络），请耐心等待下载完成。
 
 ---
 
