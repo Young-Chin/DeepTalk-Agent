@@ -41,7 +41,7 @@ class _MLXQwenTTSModel:
 class MLXQwenTTSAdapter:
     def __init__(
         self,
-        model: str = "mlx-community/VibeVoice-Realtime-0.5B-4bit",
+        model: str = "modelscope/VibeVoice-Realtime-0.5B-4bit",
         *,
         lang_code: str = "zh",
         voice: str | None = None,

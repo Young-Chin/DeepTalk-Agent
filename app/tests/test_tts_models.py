@@ -31,9 +31,9 @@ TEST_TEXTS = {
 def create_test_config(model_type: str) -> AppConfig:
     """创建测试配置"""
     model_map = {
-        "vibevoice": "mlx-community/VibeVoice-Realtime-0.5B-4bit",
-        "kokoro": "mlx-community/Kokoro-82M-4bit",
-        "qwen3": "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
+        "vibevoice": "modelscope/VibeVoice-Realtime-0.5B-4bit",
+        "kokoro": "modelscope/Kokoro-82M-4bit",
+        "qwen3": "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit",
     }
     
     return AppConfig(

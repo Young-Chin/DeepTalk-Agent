@@ -29,7 +29,7 @@ def test_load_config_allows_mlx_asr_without_remote_qwen_url(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     monkeypatch.delenv("QWEN_ASR_BASE_URL", raising=False)
     monkeypatch.setenv("ASR_BACKEND", "mlx")
-    monkeypatch.setenv("MLX_ASR_MODEL", "mlx-community/Qwen3-ASR-0.6B-4bit")
+    monkeypatch.setenv("MLX_ASR_MODEL", "modelscope/Qwen3-ASR-0.6B-4bit")
     monkeypatch.setenv("FISH_TTS_BASE_URL", "http://localhost:8002")
 
     cfg = load_config()
@@ -53,7 +53,7 @@ def test_load_config_allows_mlx_qwen3_tts_without_remote_fish_url(monkeypatch):
     monkeypatch.delenv("FISH_TTS_BASE_URL", raising=False)
     monkeypatch.setenv("TTS_BACKEND", "mlx_qwen3")
     monkeypatch.setenv("MLX_TTS_MODEL_TYPE", "qwen3")
-    monkeypatch.setenv("MLX_TTS_QWEN3_MODEL", "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit")
+    monkeypatch.setenv("MLX_TTS_QWEN3_MODEL", "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit")
     monkeypatch.setenv("MLX_TTS_LANGUAGE", "zh")
 
     cfg = load_config()

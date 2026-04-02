@@ -54,7 +54,7 @@ python3 -m app.tests.test_tts_models --model-type qwen3 \
 2. 如果仍然报错，尝试：
    ```bash
    # 清除模型缓存，重新下载
-   rm -rf ~/.cache/huggingface/hub/models--mlx-community--Kokoro-82M-4bit
+   rm -rf ~/.cache/modelscope/hub/modelscope--Kokoro-82M-4bit
    export MLX_TTS_MODEL_TYPE=kokoro
    python3 -m app.tests.test_tts_models --model-type kokoro --verbose
    ```
@@ -81,7 +81,7 @@ python3 -m app.tests.test_tts_models --model-type qwen3 \
 3. 如果问题依然存在，尝试重置模型:
    ```bash
    # 清除缓存
-   rm -rf ~/.cache/huggingface/hub/models--mlx-community--VibeVoice*
+   rm -rf ~/.cache/modelscope/hub/modelscope--VibeVoice*
    
    # 重新测试
    python3 -m app.tests.test_tts_models --model-type vibevoice --verbose
@@ -116,7 +116,7 @@ tail -100 logs/run.log
 
 ```
 # 模型加载
-Loading TTS model: mlx-community/VibeVoice-Realtime-0.5B-4bit
+Loading TTS model: modelscope/VibeVoice-Realtime-0.5B-4bit
 TTS model loaded successfully
 
 # TTS 合成参数

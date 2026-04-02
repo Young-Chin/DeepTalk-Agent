@@ -43,7 +43,7 @@ async def test_qwen_tts_adapter_returns_joined_wav_bytes():
         ]
     )
     adapter = MLXQwenTTSAdapter(
-        model="mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
+        model="modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit",
         loaded_model=model,
         lang_code="zh",
     )
@@ -62,7 +62,7 @@ async def test_qwen_tts_adapter_returns_joined_wav_bytes():
 async def test_qwen_tts_adapter_rejects_empty_generation():
     model = FakeQwenTTSModel([])
     adapter = MLXQwenTTSAdapter(
-        model="mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
+        model="modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit",
         loaded_model=model,
     )
 

@@ -18,14 +18,14 @@ class AppConfig:
     llm_model: str = "qwen3.5-flash"
     llm_system_prompt: str | None = None  # 可选的自定义 system prompt
     asr_backend: str = "mlx"
-    mlx_asr_model: str = "mlx-community/Qwen3-ASR-0.6B-4bit"
+    mlx_asr_model: str = "modelscope/Qwen3-ASR-0.6B-4bit"
     mlx_asr_language: str = "zh"
     tts_backend: str = "mlx_qwen3"
     # TTS 模型选择：vibevoice / kokoro / qwen3
     mlx_tts_model_type: str = "qwen3"
-    mlx_tts_vibevoice_model: str = "mlx-community/VibeVoice-Realtime-0.5B-4bit"
-    mlx_tts_kokoro_model: str = "mlx-community/Kokoro-82M-4bit"
-    mlx_tts_qwen3_model: str = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+    mlx_tts_vibevoice_model: str = "modelscope/VibeVoice-Realtime-0.5B-4bit"
+    mlx_tts_kokoro_model: str = "modelscope/Kokoro-82M-4bit"
+    mlx_tts_qwen3_model: str = "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit"
     mlx_tts_language: str = "zh"
     mlx_tts_voice: str | None = None
     mlx_tts_speed: float = 1.0  # TTS 语速控制
@@ -108,13 +108,13 @@ def load_config() -> AppConfig:
         qwen_asr_base_url=qwen_asr_base_url,
         fish_tts_base_url=fish_tts_base_url,
         asr_backend=asr_backend,
-        mlx_asr_model=os.getenv("MLX_ASR_MODEL", "mlx-community/Qwen3-ASR-0.6B-4bit"),
+        mlx_asr_model=os.getenv("MLX_ASR_MODEL", "modelscope/Qwen3-ASR-0.6B-4bit"),
         mlx_asr_language=os.getenv("MLX_ASR_LANGUAGE", "zh"),
         tts_backend=tts_backend,
         mlx_tts_model_type=mlx_tts_model_type,  # vibevoice / kokoro / qwen3
-        mlx_tts_vibevoice_model=os.getenv("MLX_TTS_VIBEVOICE_MODEL", "mlx-community/VibeVoice-Realtime-0.5B-4bit"),
-        mlx_tts_kokoro_model=os.getenv("MLX_TTS_KOKORO_MODEL", "mlx-community/Kokoro-82M-4bit"),
-        mlx_tts_qwen3_model=os.getenv("MLX_TTS_QWEN3_MODEL", "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"),
+        mlx_tts_vibevoice_model=os.getenv("MLX_TTS_VIBEVOICE_MODEL", "modelscope/VibeVoice-Realtime-0.5B-4bit"),
+        mlx_tts_kokoro_model=os.getenv("MLX_TTS_KOKORO_MODEL", "modelscope/Kokoro-82M-4bit"),
+        mlx_tts_qwen3_model=os.getenv("MLX_TTS_QWEN3_MODEL", "modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit"),
         mlx_tts_language=os.getenv("MLX_TTS_LANGUAGE", "zh"),
         mlx_tts_voice=_optional("MLX_TTS_VOICE"),
         mlx_tts_speed=float(os.getenv("MLX_TTS_SPEED", "1.0")),  # TTS 语速控制
