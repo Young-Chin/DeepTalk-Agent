@@ -45,18 +45,32 @@ python3 -m app.tests.test_tts_models --model-type qwen3 \
 
 ### Kokoro 模型问题
 
-**错误**: `shape (512, 3, 512) but received shape (512, 512, 3)`
+**错误**: `Expected shape (512, 3, 512) but received shape (512, 512, 3) for parameter predictor.F0.0.conv1.weight_v`
 
-**原因**: Kokoro 模型的权重布局与其他模型不同，需要特殊的参数处理。
+**原因**: Kokoro-82M-4bit 模型的权重张量布局与 MLX 0.31.1 + mlx-audio 0.4.2 不兼容。这是一个框架级别的兼容性问题，不能通过参数调整解决。
+
+**当前状态**: 
+- ✓ VibeVoice-Realtime-0.5B-4bit 正常工作
+- ✓ Qwen3-TTS-12Hz-0.6B-Base-4bit 正常工作
+- ✗ Kokoro-82M-4bit 不兼容（权重形状错误）
 
 **解决方案**:
-1. 已自动检测 Kokoro 模型并使用 `lang` 参数而非 `lang_code`
-2. 如果仍然报错，尝试：
+1. **推荐方案**: 使用 VibeVoice（平衡的延迟和质量）或 Qwen3（最佳质量）
    ```bash
-   # 清除模型缓存，重新下载
-   rm -rf ~/.cache/modelscope/hub/modelscope--Kokoro-82M-4bit
-   export MLX_TTS_MODEL_TYPE=kokoro
-   python3 -m app.tests.test_tts_models --model-type kokoro --verbose
+   export MLX_TTS_MODEL_TYPE=vibevoice  # 推荐
+   # 或
+   export MLX_TTS_MODEL_TYPE=qwen3      # 最佳音质
+   ```
+
+2. **如果需要支持 Kokoro**，需要：
+   - 升级 MLX 版本（>0.31.1）
+   - 升级 mlx-audio 版本（>0.4.2）
+   - 或使用不同的 Kokoro 模型版本
+
+3. **清除缓存**（如果使用了旧的 modelscope 路径）:
+   ```bash
+   rm -rf ~/.cache/huggingface/hub/models--mlx-community--Kokoro*
+   rm -rf ~/.cache/modelscope/hub/modelscope--Kokoro*
    ```
 
 ### VibeVoice 语言问题
@@ -148,19 +162,21 @@ python3 -m app.tests.test_tts_models --model-type <your_model> --verbose 2>&1 | 
 
 ### 降低延迟
 
-1. **使用 Kokoro 模型** (最快):
+1. **使用 VibeVoice 模型** (平衡速度和质量，~5秒):
    ```bash
-   export MLX_TTS_MODEL_TYPE=kokoro
+   export MLX_TTS_MODEL_TYPE=vibevoice  # 推荐
    ```
 
 2. **提高语速**:
    ```bash
-   export MLX_TTS_SPEED=1.2  # 1.0 为正常速度
+   export MLX_TTS_SPEED=1.2  # 1.0 为正常速度，1.2 为加速 20%
    ```
 
 3. **缩短回复长度**:
-   - 已优化 system prompt
+   - 已优化 system prompt（≤50 字符，口语化、拟人化）
    - 限制 max_tokens=100
+
+4. **注意**: Kokoro 模型当前与 MLX 0.31.1 不兼容，无法使用
 
 ### 提高音质
 
