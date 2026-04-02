@@ -1,0 +1,149 @@
+2026-04-02 22:29:51.685 INFO root [logger.py:53] ================================================================================
+2026-04-02 22:29:51.685 INFO root [logger.py:54] 应用启动，日志文件：/Users/gechin/Code/Podcast/logs/run.log
+2026-04-02 22:29:51.685 INFO root [logger.py:55] ================================================================================
+2026-04-02 22:29:51.742 INFO podcast.runtime [main.py:86] DEBUG: config.mlx_tts_model_type=qwen3, available models=['vibevoice', 'kokoro', 'qwen3']
+2026-04-02 22:29:51.742 INFO podcast.runtime [main.py:87] 使用 TTS 模型：qwen3 (Qwen3-TTS-12Hz-0.6B-Base-4bit)
+2026-04-02 22:29:52.282 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3-ASR-0.6B-4bit/revision/main "HTTP/1.1 200 OK"
+2026-04-02 22:29:53.489 INFO podcast.tts.mlx [qwen_adapter.py:26] Loading TTS model: mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:29:53.815 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit/revision/main "HTTP/1.1 200 OK"
+2026-04-02 22:29:54.622 INFO podcast.tts.mlx [qwen_adapter.py:28] TTS model loaded successfully
+2026-04-02 22:29:59.787 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:00.573 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:30:00.580 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:00.581 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:30:00.581 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：17 字符
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:30:00.581 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:30:00.582 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:30:02.603 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-02 22:30:02.606 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：165.0 KB
+2026-04-02 22:30:02.606 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-02 22:30:02.606 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:02.607 INFO podcast.runtime [main.py:359] TTS 合成总耗时：2025ms
+2026-04-02 22:30:02.607 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms
+2026-04-02 22:30:19.102 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:19.829 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:30:19.836 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:19.837 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:30:19.837 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：26 字符
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:30:19.837 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:30:23.287 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-02 22:30:23.291 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：341.3 KB
+2026-04-02 22:30:23.292 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-02 22:30:23.292 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:23.292 INFO podcast.runtime [main.py:359] TTS 合成总耗时：3455ms
+2026-04-02 22:30:23.292 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms
+2026-04-02 22:30:42.561 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:43.171 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:30:43.177 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:43.177 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:30:43.177 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：23 字符
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:30:43.177 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:30:43.178 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:30:46.611 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-02 22:30:46.617 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：333.8 KB
+2026-04-02 22:30:46.617 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-02 22:30:46.617 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:30:46.617 INFO podcast.runtime [main.py:359] TTS 合成总耗时：3440ms
+2026-04-02 22:30:46.617 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms
+2026-04-02 22:31:03.948 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:05.188 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:31:05.193 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:05.193 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:31:05.193 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:31:05.193 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:31:05.193 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:31:05.194 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：22 字符
+2026-04-02 22:31:05.194 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:31:05.194 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:31:05.194 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:31:05.194 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:31:07.355 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-02 22:31:07.356 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：202.5 KB
+2026-04-02 22:31:07.356 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-02 22:31:07.357 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:07.357 INFO podcast.runtime [main.py:359] TTS 合成总耗时：2163ms
+2026-04-02 22:31:07.357 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms
+2026-04-02 22:31:20.722 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:21.367 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:31:21.374 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:21.374 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:31:21.374 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:31:21.374 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:31:21.374 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:31:21.374 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：24 字符
+2026-04-02 22:31:21.374 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:31:21.374 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:31:21.375 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:31:21.375 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:31:23.742 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-02 22:31:23.744 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：225.0 KB
+2026-04-02 22:31:23.744 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-02 22:31:23.744 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:23.744 INFO podcast.runtime [main.py:359] TTS 合成总耗时：2370ms
+2026-04-02 22:31:23.744 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms
+2026-04-02 22:31:35.322 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:36.013 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-02 22:31:36.021 INFO podcast.runtime [logger.py:122] timing
+2026-04-02 22:31:36.021 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-02 22:31:36.021 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-02 22:31:36.021 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：24 字符
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-02 22:31:36.022 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Qwen3-TTS-12Hz-0.6B-Base-4bit, lang=zh, voice=None
+2026-04-02 22:31:36.072 INFO podcast.runtime [logger.py:122] timing
+2026-04-03 00:36:08.803 INFO root [logger.py:53] ================================================================================
+2026-04-03 00:36:08.804 INFO root [logger.py:54] 应用启动，日志文件：/Users/gechin/Code/Podcast/logs/run.log
+2026-04-03 00:36:08.804 INFO root [logger.py:55] ================================================================================
+2026-04-03 00:36:08.892 INFO podcast.runtime [main.py:86] DEBUG: config.mlx_tts_model_type=qwen3, available models=['vibevoice', 'kokoro', 'qwen3']
+2026-04-03 00:36:08.893 INFO podcast.runtime [main.py:87] 使用 TTS 模型：qwen3 (Qwen3-TTS-12Hz-0.6B-Base-4bit)
+2026-04-03 00:36:09.636 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3-ASR-0.6B-4bit/revision/main "HTTP/1.1 200 OK"
+2026-04-03 00:36:12.770 INFO podcast.tts.mlx [qwen_adapter.py:26] Loading TTS model: mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit
+2026-04-03 00:36:13.116 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit/revision/main "HTTP/1.1 200 OK"
+2026-04-03 00:36:14.211 INFO podcast.tts.mlx [qwen_adapter.py:28] TTS model loaded successfully
+2026-04-03 00:40:50.600 INFO root [logger.py:53] ================================================================================
+2026-04-03 00:40:50.600 INFO root [logger.py:54] 应用启动，日志文件：/Users/gechin/Code/Podcast/logs/run.log
+2026-04-03 00:40:50.600 INFO root [logger.py:55] ================================================================================
+2026-04-03 00:40:50.652 INFO podcast.runtime [main.py:86] DEBUG: config.mlx_tts_model_type=kokoro, available models=['vibevoice', 'kokoro', 'qwen3']
+2026-04-03 00:40:50.652 INFO podcast.runtime [main.py:87] 使用 TTS 模型：kokoro (Kokoro-82M-bf16)
+2026-04-03 00:40:51.177 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Qwen3-ASR-0.6B-4bit/revision/main "HTTP/1.1 200 OK"
+2026-04-03 00:40:53.218 INFO podcast.tts.mlx [qwen_adapter.py:26] Loading TTS model: mlx-community/Kokoro-82M-bf16
+2026-04-03 00:40:53.495 INFO httpx [_client.py:1025] HTTP Request: GET https://huggingface.co/api/models/mlx-community/Kokoro-82M-bf16/revision/main "HTTP/1.1 200 OK"
+2026-04-03 00:40:54.264 INFO podcast.tts.mlx [qwen_adapter.py:28] TTS model loaded successfully
+2026-04-03 00:41:00.464 INFO podcast.runtime [logger.py:122] timing
+2026-04-03 00:41:01.274 INFO httpx [_client.py:1740] HTTP Request: POST https://model-api.skyengine.com.cn/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-03 00:41:01.281 INFO podcast.runtime [logger.py:122] timing
+2026-04-03 00:41:01.282 INFO podcast.runtime [main.py:314] LLM 回复完成，准备 TTS 合成
+2026-04-03 00:41:01.282 INFO podcast.runtime [main.py:338] 打印后等待 TTS 合成：0ms
+2026-04-03 00:41:01.282 INFO podcast.tts.mlx [qwen_adapter.py:58] ============================================================
+2026-04-03 00:41:01.282 INFO podcast.tts.mlx [qwen_adapter.py:59] 开始 TTS 合成
+2026-04-03 00:41:01.282 INFO podcast.tts.mlx [qwen_adapter.py:60]   文本长度：33 字符
+2026-04-03 00:41:01.282 INFO podcast.tts.mlx [qwen_adapter.py:61]   模型：Kokoro-82M-bf16
+2026-04-03 00:41:01.282 INFO podcast.tts.mlx [qwen_adapter.py:62]   语言：zh
+2026-04-03 00:41:01.283 INFO podcast.tts.mlx [qwen_adapter.py:63]   语速：1.000000
+2026-04-03 00:41:01.283 INFO podcast.tts.mlx [qwen_adapter.py:86] TTS 生成参数：model=Kokoro-82M-bf16, lang=zh, voice=None
+2026-04-03 00:41:02.279 WARNING phonemizer [words_mismatch.py:97] words count mismatch on 100.0% of the lines (1/1)
+2026-04-03 00:41:07.050 INFO podcast.tts.mlx [qwen_adapter.py:71] TTS 合成完成
+2026-04-03 00:41:07.060 INFO podcast.tts.mlx [qwen_adapter.py:72]   音频大小：1150.8 KB
+2026-04-03 00:41:07.062 INFO podcast.tts.mlx [qwen_adapter.py:73] ============================================================
+2026-04-03 00:41:07.062 INFO podcast.runtime [logger.py:122] timing
+2026-04-03 00:41:07.062 INFO podcast.runtime [main.py:359] TTS 合成总耗时：5780ms
+2026-04-03 00:41:07.062 INFO podcast.runtime [main.py:364] TTS 合成完成到播放开始：0ms

@@ -1,0 +1,257 @@
+{
+  "vibevoice": {
+    "chinese": [
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "short_chinese",
+        "success": true,
+        "error": null,
+        "duration_ms": 4662,
+        "file_size": 57644,
+        "sample_rate": 24000,
+        "output_file": "/Users/gechin/Code/Podcast/tests/output/vibevoice_short_chinese.wav",
+        "notes": null
+      },
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "medium_chinese",
+        "success": true,
+        "error": null,
+        "duration_ms": 6336,
+        "file_size": 364844,
+        "sample_rate": 24000,
+        "output_file": "/Users/gechin/Code/Podcast/tests/output/vibevoice_medium_chinese.wav",
+        "notes": null
+      },
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "long_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "chinese_with_punctuation",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "english": [
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "short_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "medium_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "mixed": [
+      {
+        "model_type": "vibevoice",
+        "test_case_name": "mixed_languages",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ]
+  },
+  "kokoro": {
+    "chinese": [
+      {
+        "model_type": "kokoro",
+        "test_case_name": "short_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "kokoro",
+        "test_case_name": "medium_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "kokoro",
+        "test_case_name": "long_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "kokoro",
+        "test_case_name": "chinese_with_punctuation",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "english": [
+      {
+        "model_type": "kokoro",
+        "test_case_name": "short_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "kokoro",
+        "test_case_name": "medium_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "mixed": [
+      {
+        "model_type": "kokoro",
+        "test_case_name": "mixed_languages",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ]
+  },
+  "qwen3": {
+    "chinese": [
+      {
+        "model_type": "qwen3",
+        "test_case_name": "short_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "qwen3",
+        "test_case_name": "medium_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "qwen3",
+        "test_case_name": "long_chinese",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "qwen3",
+        "test_case_name": "chinese_with_punctuation",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "english": [
+      {
+        "model_type": "qwen3",
+        "test_case_name": "short_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      },
+      {
+        "model_type": "qwen3",
+        "test_case_name": "medium_english",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ],
+    "mixed": [
+      {
+        "model_type": "qwen3",
+        "test_case_name": "mixed_languages",
+        "success": false,
+        "error": "[Errno 32] Broken pipe",
+        "duration_ms": 0,
+        "file_size": 0,
+        "sample_rate": 0,
+        "output_file": null,
+        "notes": null
+      }
+    ]
+  }
+}

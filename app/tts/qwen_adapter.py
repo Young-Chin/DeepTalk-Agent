@@ -93,11 +93,15 @@ class MLXQwenTTSAdapter:
         
         if is_kokoro:
             # Kokoro 特定参数
+            # 语言代码映射: zh -> z (中文), en -> a (英文)
+            lang_code = "z" if self.lang_code == "zh" else "a"
             kwargs.update({
-                "lang": self.lang_code,  # Kokoro 使用 lang 而不是 lang_code
+                "lang_code": lang_code,
                 "speed": self.speed,
             })
-            LOGGER.debug("使用 Kokoro 模式")
+            if self.voice:
+                kwargs["voice"] = self.voice
+            LOGGER.debug("使用 Kokoro 模式，语言代码=%s", lang_code)
         elif is_vibevoice:
             # VibeVoice 特定参数
             # 注意: VibeVoice 不支持 lang_code 参数，语言由输入文本自动检测

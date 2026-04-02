@@ -83,6 +83,7 @@ def _build_tts(config: AppConfig, backend: str):
             "qwen3": config.mlx_tts_qwen3_model,
         }
         selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_vibevoice_model)
+        LOGGER.info("DEBUG: config.mlx_tts_model_type=%s, available models=%s", config.mlx_tts_model_type, list(model_map.keys()))
         LOGGER.info("使用 TTS 模型：%s (%s)", config.mlx_tts_model_type, selected_model.split('/')[-1])
         return (
             MLXQwenTTSAdapter(
@@ -105,6 +106,10 @@ def build_app() -> dict:
     else:
         _load_dotenv()
         config = load_config()
+    
+    # 尽早初始化日志系统
+    configure_logging(config.log_level)
+    
     bus = EventBus()
     memory = SessionStore()
     state_machine = ConversationStateMachine(memory=memory)
@@ -652,7 +657,6 @@ async def _run_push_to_talk(app: dict) -> None:
 
 async def run() -> None:
     app = build_app()
-    configure_logging(app["config"].log_level)
     print("DeepTalk Agent CLI started. Press Ctrl+C to exit.")
     if os.getenv("PODCAST_SELF_TEST", "").strip().lower() in {"1", "true", "yes", "on"}:
         await run_self_test(app)
