@@ -111,7 +111,7 @@ def build_app() -> dict:
     try:
         sounddevice_module = importlib.import_module("sounddevice")
         numpy_module = importlib.import_module("numpy")
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, OSError):
         sounddevice_module = None
         numpy_module = None
     if backend == "mock":
