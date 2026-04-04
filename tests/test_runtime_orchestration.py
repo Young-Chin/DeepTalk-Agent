@@ -401,8 +401,8 @@ async def test_run_self_test_reports_devices_and_pipeline_status(monkeypatch):
     assert "ASR backend: mlx" in lines
     assert "TTS backend: mlx_qwen3" in lines
     assert "LLM model: qwen3.5-flash" in lines
-    assert "ASR model: modelscope/Qwen3-ASR-0.6B-4bit" in lines
-    assert "TTS model: modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit" in lines
+    assert "ASR model: mlx-community/whisper-small-asr-4bit" in lines
+    assert "TTS model: mlx-community/Kokoro-82M-4bit" in lines
     assert "Input device: Fake Microphone" in lines
     assert "Output device: Fake Speaker" in lines
     assert "Playback mode: real" in lines

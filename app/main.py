@@ -40,9 +40,9 @@ def _build_mock_config() -> AppConfig:
         fish_tts_base_url="mock://tts",
         asr_backend="mock",
         tts_backend="mock",
-        mlx_tts_model_type="qwen3",
+        mlx_tts_model_type="kokoro",
         mlx_tts_vibevoice_model="modelscope/VibeVoice-Realtime-0.5B-4bit",
-        mlx_tts_kokoro_model="modelscope/Kokoro-82M-4bit",
+        mlx_tts_kokoro_model="mlx-community/Kokoro-82M-bf16",
         mlx_tts_qwen3_model="modelscope/Qwen3-TTS-12Hz-0.6B-Base-4bit",
         audio_sample_rate=int(os.getenv("AUDIO_SAMPLE_RATE", "16000")),
         vad_start_ms=int(os.getenv("VAD_START_MS", "120")),
@@ -82,7 +82,7 @@ def _build_tts(config: AppConfig, backend: str):
             "kokoro": config.mlx_tts_kokoro_model,
             "qwen3": config.mlx_tts_qwen3_model,
         }
-        selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_vibevoice_model)
+        selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_kokoro_model)
         LOGGER.info("DEBUG: config.mlx_tts_model_type=%s, available models=%s", config.mlx_tts_model_type, list(model_map.keys()))
         LOGGER.info("使用 TTS 模型：%s (%s)", config.mlx_tts_model_type, selected_model.split('/')[-1])
         return (
@@ -251,7 +251,7 @@ def _preload_models(app: dict, printer=None) -> None:
                 "kokoro": config.mlx_tts_kokoro_model,
                 "qwen3": config.mlx_tts_qwen3_model,
             }
-            selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_qwen3_model)
+            selected_model = model_map.get(config.mlx_tts_model_type, config.mlx_tts_kokoro_model)
             printer(f"TTS model preloaded: {selected_model}")
         except Exception as exc:
             printer(f"Warning: TTS model preload skipped: {exc}")
@@ -274,7 +274,7 @@ def _describe_tts_model(app: dict) -> str:
             "kokoro": config.mlx_tts_kokoro_model,
             "qwen3": config.mlx_tts_qwen3_model,
         }
-        return model_map.get(config.mlx_tts_model_type, config.mlx_tts_qwen3_model)
+        return model_map.get(config.mlx_tts_model_type, config.mlx_tts_kokoro_model)
     if app["tts_provider"] == "mock":
         return "mock"
     return config.fish_tts_base_url or "unconfigured"
@@ -670,22 +670,8 @@ async def run() -> None:
         await run_audio_demo(app, _load_demo_audio_bytes(audio_demo_path))
         return
 
-    ptt = os.getenv("PODCAST_PTT", "").strip().lower()
-    if ptt in {"1", "true", "yes", "on"}:
-        await _run_push_to_talk(app)
-        return
-
-    try:
-        start_audio_input(app)
-    except RuntimeError as exc:
-        LOGGER.warning("audio input unavailable: %s", exc)
-
-    try:
-        while True:
-            await pump_microphone_once(app)
-            await consume_next_event(app)
-    finally:
-        stop_audio_input(app)
+    # PTT mode is the only interaction mode
+    await _run_push_to_talk(app)
 
 
 def main() -> int:

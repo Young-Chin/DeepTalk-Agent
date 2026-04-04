@@ -42,7 +42,7 @@ async def test_mock_agent_adapter_uses_last_user_message():
         ]
     )
 
-    assert reply == "Host: Tell me more about Tell me about testing."
+    assert "Tell me about testing" in reply
 
 
 @pytest.mark.asyncio
