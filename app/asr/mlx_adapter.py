@@ -51,12 +51,25 @@ class MLXASRAdapter:
         self._transcriber = transcriber or _MLXTranscriber(model)
 
     async def transcribe_chunk(self, pcm_bytes: bytes) -> str:
+        full_text = []
+        async for chunk_text in self.transcribe_stream(pcm_bytes):
+            full_text.append(chunk_text)
+        return "".join(full_text)
+
+    async def transcribe_stream(self, pcm_bytes: bytes):
+        """流式 ASR：将音频切分为窗口，逐步返回识别文本。
+        
+        适用于边录音边识别的场景，可以减少首字延迟。
+        当前实现为简化版：对完整音频一次性识别，但接口预留流式能力。
+        """
         result = await asyncio.to_thread(
             self._transcriber.transcribe,
             pcm_bytes,
             self.language,
         )
-        return self._extract_text(result)
+        text = self._extract_text(result)
+        if text:
+            yield text
 
     def _extract_text(self, payload: object) -> str:
         if isinstance(payload, str):

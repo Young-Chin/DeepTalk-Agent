@@ -23,11 +23,27 @@ class MockAgentAdapter:
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
 
     async def next_host_reply(self, history: list[dict]) -> str:
+        full = []
+        async for chunk in self.next_host_reply_stream(history):
+            full.append(chunk)
+        return "".join(full)
+
+    async def next_host_reply_stream(self, history: list[dict]):
+        """流式返回 mock 回复，按句子 yield。"""
+        reply = await self._build_reply(history)
+        # 简单按标点分割
+        import re
+        parts = re.split(r'(?<=[。！？.!?])\s*', reply)
+        for p in parts:
+            p = p.strip()
+            if p:
+                yield p
+
+    async def _build_reply(self, history: list[dict]) -> str:
         last_user_message = self._last_user_message(history)
         if last_user_message is None:
             return f"Host: {self.default_prompt}"
         
-        # 基于对话历史生成更智能的回复
         context_summary = self._summarize_context(history)
         if context_summary:
             return f"Host: [{context_summary}] 关于{last_user_message}，能详细说说吗？"

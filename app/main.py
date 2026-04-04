@@ -297,32 +297,69 @@ async def handle_event(app: dict, event: Event) -> None:
         turn_started_at = event.payload.get("turn_started_at")
         print(f"User: {text}")
         machine.on_user_final_text(text)
+
+        # 流式管道：LLM 按句子流式输出，每句立即送 TTS 合成并播放
+        full_reply_parts: list[str] = []
         try:
-            with log_timing(
-                LOGGER,
-                component="llm",
-                operation="next_host_reply",
-                provider="gemini",
-            ):
-                reply = await app["agent"].next_host_reply(app["memory"].snapshot())
+            if hasattr(app["agent"], "next_host_reply_stream"):
+                # 流式模式
+                first_token_at: float | None = None
+                async for sentence in app["agent"].next_host_reply_stream(app["memory"].snapshot()):
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                        LOGGER.info(
+                            "LLM 首句到达延迟：%dms",
+                            int((first_token_at - turn_started_at) * 1000) if turn_started_at else 0,
+                        )
+                    full_reply_parts.append(sentence)
+
+                    # 立即合成并播放当前句子
+                    tts_start = time.perf_counter()
+                    try:
+                        audio_bytes = await app["tts"].synthesize(sentence)
+                    except Exception as exc:
+                        _recover_to_listening(app, "tts", exc)
+                        return
+                    tts_ms = int((time.perf_counter() - tts_start) * 1000)
+                    LOGGER.info(f"流式 TTS 合成句子耗时：{tts_ms}ms")
+
+                    await app["audio_out"].play(audio_bytes)
+                    # 播放期间监控打断
+                    interrupted = await _wait_for_playback_done(app)
+                    if interrupted:
+                        app["state_machine"].on_interrupt()
+                        _print_turn_latency(turn_started_at)
+                        return
+
+                # 全部播放完成
+                full_reply = "".join(full_reply_parts)
+                print(f"Host: {full_reply}")
+                machine.on_agent_reply_ready(full_reply)
+                _print_turn_latency(turn_started_at)
+            else:
+                # 非流式回退
+                with log_timing(
+                    LOGGER,
+                    component="llm",
+                    operation="next_host_reply",
+                    provider="gemini",
+                ):
+                    reply = await app["agent"].next_host_reply(app["memory"].snapshot())
+                llm_done_at = time.perf_counter()
+                LOGGER.info(
+                    "LLM 回复完成，准备 TTS 合成",
+                    extra={"latency_ms": int((llm_done_at - turn_started_at) * 1000) if turn_started_at else 0},
+                )
+                await handle_event(
+                    app,
+                    Event(
+                        type=EventType.AGENT_TEXT_READY,
+                        payload={"text": reply, "turn_started_at": turn_started_at, "llm_done_at": llm_done_at},
+                    ),
+                )
         except Exception as exc:
             _recover_to_listening(app, "llm", exc)
             return
-        
-        # 记录 LLM 回复完成时间点
-        llm_done_at = time.perf_counter()
-        LOGGER.info(
-            "LLM 回复完成，准备 TTS 合成",
-            extra={"latency_ms": int((llm_done_at - turn_started_at) * 1000) if turn_started_at else 0},
-        )
-        
-        await handle_event(
-            app,
-            Event(
-                type=EventType.AGENT_TEXT_READY,
-                payload={"text": reply, "turn_started_at": turn_started_at, "llm_done_at": llm_done_at},
-            ),
-        )
         return
 
     if event.type == EventType.AGENT_TEXT_READY:

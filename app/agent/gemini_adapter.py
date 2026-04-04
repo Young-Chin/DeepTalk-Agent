@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+import re
 
 DEFAULT_SYSTEM_PROMPT = """你是一位亲切自然的访谈主持人。
 
@@ -12,6 +13,9 @@ DEFAULT_SYSTEM_PROMPT = """你是一位亲切自然的访谈主持人。
 - 引导对话：用简短的问题推动话题
 
 记住：少即是多，自然流畅最重要。"""
+
+# 句子分割正则：中文句号/问号/感叹号，或英文句号+空格/结尾
+_SENTENCE_SPLIT = re.compile(r'(?<=[。！？.!?])\s*')
 
 
 class GeminiAdapter:
@@ -37,31 +41,58 @@ class GeminiAdapter:
         return {"Authorization": f"Bearer {self.api_key}"}
 
     async def next_host_reply(self, history: list[dict]) -> str:
-        # 构建包含 system prompt 的完整消息列表
+        full_text = []
+        async for chunk in self.next_host_reply_stream(history):
+            full_text.append(chunk)
+        result = "".join(full_text)
+        if len(result) > 150:
+            result = result[:147] + "..."
+        return result
+
+    async def next_host_reply_stream(self, history: list[dict]):
+        """流式返回 LLM 回复，按句子 yield。"""
         messages_with_system = [
             {"role": "system", "content": self.system_prompt},
             *history
         ]
         payload = {
-            "model": self.model, 
+            "model": self.model,
             "messages": messages_with_system,
-            "max_tokens": 100,  # 限制回复长度，减少 TTS 时延
-            "temperature": 0.7,  # 适度创造性，保持自然
+            "max_tokens": 100,
+            "temperature": 0.7,
+            "stream": True,
         }
         headers = self._authorization_header()
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
+        sentence_buffer = ""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            async with client.stream(
+                "POST",
                 self.base_url,
                 json=payload,
                 headers=headers,
-            )
-            response.raise_for_status()
-            text = self._extract_text(response.json())
-            # 额外截断过长的回复
-            if len(text) > 150:
-                text = text[:147] + "..."
-            return text
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line or line.strip() == "data: [DONE]":
+                        continue
+                    if not line.startswith("data: "):
+                        continue
+                    text = self._extract_stream_text(line)
+                    if text:
+                        sentence_buffer += text
+                        sentences = _SENTENCE_SPLIT.split(sentence_buffer)
+                        # 最后一个可能不完整，保留在 buffer
+                        if len(sentences) > 1:
+                            for s in sentences[:-1]:
+                                s = s.strip()
+                                if s:
+                                    yield s
+                            sentence_buffer = sentences[-1]
+                # 输出剩余内容
+                sentence_buffer = sentence_buffer.strip()
+                if sentence_buffer:
+                    yield sentence_buffer
 
     def _extract_text(self, payload: object) -> str:
         if isinstance(payload, dict):
@@ -78,3 +109,16 @@ class GeminiAdapter:
                         if isinstance(content, str):
                             return content
         raise ValueError("Unsupported LLM response payload")
+
+    def _extract_stream_text(self, line: str) -> str:
+        """从 SSE data: 行提取增量文本。"""
+        import json
+        try:
+            data = json.loads(line[6:])  # strip "data: "
+            choices = data.get("choices", [])
+            if choices:
+                delta = choices[0].get("delta", {})
+                return delta.get("content", "")
+        except (json.JSONDecodeError, KeyError, IndexError):
+            pass
+        return ""
