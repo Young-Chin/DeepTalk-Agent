@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Test</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>Audio Playback Test</h1>
+    <button id="testBtn">Test Audio</button>
+    <div id="status"></div>
+
+    <script>
+        const status = document.getElementById('status');
+
+        function log(msg) {
+            console.log(msg);
+            status.innerHTML += '<br>' + msg;
+        }
+
+        // Test base64 decoding and audio playback
+        async function testAudio() {
+            try {
+                log('Creating AudioContext...');
+                const audioContext = new AudioContext();
+                log('AudioContext state: ' + audioContext.state);
+
+                // Resume if suspended (browser policy)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                    log('AudioContext resumed');
+                }
+
+                // Create a simple test tone (1 second, 440Hz sine wave)
+                const sampleRate = 24000;
+                const duration = 1;
+                const numSamples = sampleRate * duration;
+                const buffer = audioContext.createBuffer(1, numSamples, sampleRate);
+                const data = buffer.getChannelData(0);
+
+                for (let i = 0; i < numSamples; i++) {
+                    data[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.5;
+                }
+
+                log('Created test tone buffer');
+
+                // Play the tone
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start();
+
+                log('Playing test tone...');
+
+                await new Promise(resolve => {
+                    source.onended = resolve;
+                });
+
+                log('Test tone finished!');
+
+            } catch (e) {
+                log('Error: ' + e.message);
+                console.error(e);
+            }
+        }
+
+        document.getElementById('testBtn').addEventListener('click', testAudio);
+        log('Page loaded. Click button to test.');
+    </script>
+</body>
+</html>
